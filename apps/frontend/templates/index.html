@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Greeting App</title>
+</head>
+<body>
+    <h1>Welcome to the Greeting App</h1>
+    <form method="POST">
+        <input type="text" name="name" placeholder="Enter your name" required>
+        <button type="submit">Greet Me</button>
+    </form>
+    {% if message %}
+    <p>{{ message }}</p>
+    {% endif %}
+</body>
+</html>

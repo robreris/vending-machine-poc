@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aws-alb-ingress-controller
+  namespace: aws-elb-controller-namespace
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::228122752878:role/vending-machine-poc-alb-ingress
