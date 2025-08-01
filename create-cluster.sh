@@ -11,6 +11,7 @@ cluster_name="vending-machine-poc"
 app_namespace="vm-apps"
 elb_controller_namespace="aws-elb-controller-namespace"
 key_name="fgt-kp"
+route53_domain="robs-fortinet-apps.com"
 
 #===================#
 # Usage Check       #
@@ -89,7 +90,7 @@ get_oidc_id() {
 # Extract IAM Role Outputs #
 #===========================#
 extract_iam_roles() {
-  for role_key in ALBIngressRoleArn; do
+  for role_key in ALBIngressRoleArn ExternalDNSRoute53RoleArn; do
     for i in {1..30}; do
       role_value=$(aws cloudformation describe-stacks --stack-name eks-addon-roles --query "Stacks[0].Outputs[?OutputKey=='$role_key'].OutputValue" --output text)
       if [[ -n "$role_value" ]]; then
@@ -103,6 +104,7 @@ extract_iam_roles() {
 
   echo "Created roles:"
   echo $ALBIngressRoleArn
+  echo $ExternalDNSRoute53RoleArn
 }
 
 #============================#
@@ -112,9 +114,26 @@ configure_service_accounts() {
 
   sed -i "/name: aws-alb-ingress-controller/,/eks.amazonaws.com\/role-arn:/ s#^\([[:space:]]*eks.amazonaws.com/role-arn:\).*#\1 $ALBIngressRoleArn#" arch/sa.yml
   sed -i "/name: aws-alb-ingress-controller/,/namespace:/ s#^\([[:space:]]*namespace:\).*#\1 $elb_controller_namespace#" arch/sa.yml
-
+  sed -i "/name: externaldns-route53-sa/,/eks.amazonaws.com\/role-arn:/ s#^\([[:space:]]*eks.amazonaws.com/role-arn:\).*#\1 $ExternalDNSRoute53RoleArn#" arch/sa.yml
   kubectl create -f arch/sa.yml
 }
+
+
+#=============================#
+# External DNS Helm Chart     #
+#=============================#
+install_externaldns_helm_chart() {
+  helm install external-dns bitnami/external-dns \
+    --namespace kube-system \
+    --set provider=aws \
+    --set policy=upsert-only \
+    --set aws.zoneType=public \
+    --set domainFilters={$route53_domain} \
+    --set txtOwnerId=my-eks-cluster \
+    --set serviceAccount.create=false \
+    --set serviceAccount.name=externaldns-route53-sa
+}
+
 
 #=============================#
 # Load Balancer Controller   #
@@ -166,11 +185,14 @@ main() {
   # iam/service accounts
   #setup_oidc_and_roles
   #get_oidc_id
-  #extract_iam_roles
+  extract_iam_roles
   #configure_service_accounts
+
+  # external dns
+  install_externaldns_helm_chart
  
   # alb ingress controller
-  install_lb_controller
+  #install_lb_controller
 
 }
 

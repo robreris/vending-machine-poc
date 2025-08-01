@@ -76,6 +76,7 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:228122752878:certificate/b0f6748b-5cb8-4faa-a50a-bf8a350b0c6f
     alb.ingress.kubernetes.io/ssl-redirect: '443'
+    external-dns.alpha.kubernetes.io/hostname: vm-test.robs-fortinet-apps.com
 spec:
   rules:
     - host: vm-test.robs-fortinet-apps.com

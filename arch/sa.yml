@@ -5,3 +5,11 @@ metadata:
   namespace: aws-elb-controller-namespace
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::228122752878:role/vending-machine-poc-alb-ingress
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: externaldns-route53-sa
+  namespace: kube-system
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::228122752878:role/vending-machine-poc-external-dns

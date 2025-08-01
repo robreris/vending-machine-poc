@@ -220,7 +220,49 @@ Resources:
               - "elasticloadbalancing:ModifyRule"
               - "elasticloadbalancing:SetRulePriorities"
               Effect: "Allow"
-  
+
+
+  ExternalDNSRoute53Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ClusterName}-external-dns"
+      AssumeRolePolicyDocument:
+        Fn::Sub: |
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": {
+                  "Federated": "arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCId}"
+                },
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Condition": {
+                  "StringLike": {
+                    "oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCId}:sub": "system:serviceaccount:kube-system:externaldns-route53-sa*",
+                    "oidc.eks.${AWS::Region}.amazonaws.com/id/${OIDCId}:aud": "sts.amazonaws.com"
+                  }
+                }
+              }
+            ]
+          }
+      Policies:
+        - PolicyName: "test-policy"
+          PolicyDocument: 
+            Version: "2012-10-17"
+            Statement:
+            - Resource: "arn:aws:route53:::hostedzone/Z02526451H3YIJY19QJCY"
+              Action:
+              - "route53:ChangeResourceRecordSets"
+              Effect: "Allow"
+            - Resource: "*"
+              Action:
+              - "route53:ListHostedZones"
+              - "route53:ListResourceRecordSets"
+              Effect: "Allow"
+
 Outputs:
   ALBIngressRoleArn:
     Value: !GetAtt ALBIngressRole.Arn
+  ExternalDNSRoute53RoleArn:
+    Value: !GetAtt ExternalDNSRoute53Role.Arn
