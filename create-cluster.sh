@@ -160,14 +160,14 @@ main() {
 
   # set up cluster
   #check_args "$@"
-  create_cluster
+  #create_cluster
   get_cluster_info
 
   # iam/service accounts
-  setup_oidc_and_roles
-  get_oidc_id
-  extract_iam_roles
-  configure_service_accounts
+  #setup_oidc_and_roles
+  #get_oidc_id
+  #extract_iam_roles
+  #configure_service_accounts
  
   # alb ingress controller
   install_lb_controller
