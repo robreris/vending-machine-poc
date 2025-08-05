@@ -1,69 +1,85 @@
+import os
+import requests
 from typing import Optional
 from fastapi import FastAPI, Request, Form, Query
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import requests, os, uvicorn
+import uvicorn
 
 app = FastAPI(
-    title="Greeting App",
-    description="A simple FastAPI app that serves an HTML form and a JSON greeting API.",
+    title="Microservice Documentation Hub",
+    description="Frontend that aggregates API documentation for multiple microservices.",
     version="1.0.0",
 )
 
-backend_url = os.environ.get("BACKEND_URL", "http://backend:5000/greet")
+# -------------------------------
+# Backend URLs
+# -------------------------------
+GREETING_BACKEND_URL = os.environ.get("GREETING_BACKEND_URL", "http://greeting-backend:5000/greet")
+ANALYTICS_BACKEND_URL = os.environ.get("ANALYTICS_BACKEND_URL", "http://analytics-backend:5000/events")
 
+# -------------------------------
+# Template setup for frontend UI
+# -------------------------------
 templates = Jinja2Templates(directory="templates")
-#app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --------------------------
-# Response model definition
-# --------------------------
-class GreetingResponse(BaseModel):
-    message: str
-
+# -------------------------------
+# Frontend HTML endpoints
+# -------------------------------
 @app.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "message": None})
 
 @app.post("/", response_class=HTMLResponse)
 async def post_index(request: Request, name: str = Form(...)):
-    response = requests.get(backend_url, params={"name": name})
+    response = requests.get(GREETING_BACKEND_URL, params={"name": name})
     message = response.json().get("message")
     return templates.TemplateResponse("index.html", {"request": request, "message": message})
 
-# -----------------------------------------
-# Enhanced JSON API endpoint with Pydantic
-# -----------------------------------------
+# -------------------------------
+# Shared Response Models
+# -------------------------------
+class GreetingResponse(BaseModel):
+    message: str
+
+# -------------------------------
+# Microservice: Greeting Backend
+# -------------------------------
 @app.get(
     "/greet",
-    summary="Get a greeting message",
-    description="Returns a personalized greeting message as JSON.",
+    tags=["Greeting Backend"],
+    summary="Greet a user",
+    description="Proxies the request to the Greeting Backend `/greet` endpoint and returns its response.",
     response_model=GreetingResponse,
-    response_description="A JSON object containing the greeting message."
+    response_description="A JSON object containing the greeting message from the Greeting Backend."
 )
-async def greet(
-    name: str = Query(
-        ...,
-        title="Name",
-        description="The name of the person you want to greet.",
-        min_length=1,
-        max_length=50,
-        example="Alice"
-    ),
-    excited: Optional[bool] = Query(
-        False,
-        title="Excited",
-        description="If true, returns a more enthusiastic greeting.",
-        example=True
-    )
+async def greet_proxy(
+    name: str = Query(..., title="Name", description="Name of the user to greet", example="Alice")
 ):
-    """Return a greeting message as JSON with a defined schema."""
-    message = f"Hello, {name}!"
-    if excited:
-        message += " 🎉"
-    return GreetingResponse(message=message)
+    response = requests.get(GREETING_BACKEND_URL, params={"name": name})
+    return response.json()
+
+# -------------------------------
+# Example: Future Analytics Service
+# -------------------------------
+class EventResponse(BaseModel):
+    status: str
+    details: Optional[str] = None
+
+@app.get(
+    "/events",
+    tags=["Analytics Backend"],
+    summary="List recent events",
+    description="Retrieves recent events from the Analytics Backend.",
+    response_model=EventResponse,
+    response_description="A JSON object containing event info from the Analytics Backend."
+)
+async def list_events():
+    # Example proxy; could be a real backend call
+    # response = requests.get(ANALYTICS_BACKEND_URL)
+    # return response.json()
+    return {"status": "success", "details": "Example event log"}
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=5000, reload=True)
