@@ -147,15 +147,14 @@ install_lb_controller() {
   )
 
  # echo "Deploying and waiting for aws lb controller CRDs to be ready..."
- # kubectl create -k "github.com/aws/eks-charts/stable/aws-load-balancer-controller//crds?ref=master"
- # for crd in "${required_crds[@]}"; do
- #   until kubectl get crd "$crd" &> /dev/null; do
- #     echo "Waiting for CRD $crd..."
- #     sleep 1
- #   done
- # done
+  kubectl create -f crds/crds.yaml
+  for crd in "${required_crds[@]}"; do
+    until kubectl get crd "$crd" &> /dev/null; do
+      echo "Waiting for CRD $crd..."
+      sleep 1
+    done
+  done
 
- # sleep 10
 
   helm repo add eks https://aws.github.io/eks-charts
 
@@ -179,20 +178,20 @@ main() {
 
   # set up cluster
   #check_args "$@"
-  #create_cluster
+  create_cluster
   get_cluster_info
 
   # iam/service accounts
-  #setup_oidc_and_roles
-  #get_oidc_id
+  setup_oidc_and_roles
+  get_oidc_id
   extract_iam_roles
-  #configure_service_accounts
+  configure_service_accounts
+ 
+  # alb ingress controller
+  install_lb_controller
 
   # external dns
   install_externaldns_helm_chart
- 
-  # alb ingress controller
-  #install_lb_controller
 
 }
 
