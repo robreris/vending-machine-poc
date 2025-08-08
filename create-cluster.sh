@@ -146,8 +146,10 @@ install_lb_controller() {
     targetgroupbindings.elbv2.k8s.aws
   )
 
- # echo "Deploying and waiting for aws lb controller CRDs to be ready..."
+  #echo "Deploying and waiting for aws lb controller CRDs to be ready..."
   kubectl create -f crds/crds.yaml
+
+  #existence...
   for crd in "${required_crds[@]}"; do
     until kubectl get crd "$crd" &> /dev/null; do
       echo "Waiting for CRD $crd..."
@@ -155,17 +157,40 @@ install_lb_controller() {
     done
   done
 
+  #established...
+  for crd in "${CRDS[@]}"; do
+    kubectl wait --for=condition=Established "crd/${crd}" --timeout=120s
+  done
 
   helm repo add eks https://aws.github.io/eks-charts
 
-  helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
-    -n $elb_controller_namespace \
-    --set clusterName=$cluster_name \
-    --set serviceAccount.create=false \
-    --set serviceAccount.name=aws-alb-ingress-controller \
-    --set region=$AWS_DEFAULT_REGION \
-    --set setvpcId=$VPC_ID \
-    --set image.repository=602401143452.dkr.ecr.us-east-1.amazonaws.com/amazon/aws-load-balancer-controller
+  MAX_ATTEMPTS=8
+  DELAY=5
+  attempt=1
+  while :; do
+    if helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+      -n $elb_controller_namespace \
+      --set clusterName=$cluster_name \
+      --set serviceAccount.create=false \
+      --set serviceAccount.name=aws-alb-ingress-controller \
+      --set region=$AWS_DEFAULT_REGION \
+      --set setvpcId=$VPC_ID \
+      --set image.repository=602401143452.dkr.ecr.us-east-1.amazonaws.com/amazon/aws-load-balancer-controller --wait --atomic --timeout 10m; then
+      echo "ALB controller helm chart install/upgrade succeeded."
+      break
+    fi
+
+    if [[ $attempt -ge $MAX_ATTEMPTS ]]; then
+      echo "[helm] failed after ${MAX_ATTEMPTS} attempts."
+      exit 1
+    fi
+  
+    echo "[helm] attempt ${attempt} failed; sleeping ${DELAY}s before retry..."
+    sleep "${DELAY}"
+    attempt=$((attempt + 1))
+    # exponential-ish backoff with cap
+    DELAY=$(( DELAY < 60 ? DELAY * 2 : 60 ))
+  done
 
   kubectl wait deployment aws-load-balancer-controller -n $elb_controller_namespace --for=condition=Available=true --timeout=120s
   sleep 15
@@ -178,14 +203,14 @@ main() {
 
   # set up cluster
   #check_args "$@"
-  create_cluster
+  #create_cluster
   get_cluster_info
 
   # iam/service accounts
-  setup_oidc_and_roles
-  get_oidc_id
+  #setup_oidc_and_roles
+  #get_oidc_id
   extract_iam_roles
-  configure_service_accounts
+  #configure_service_accounts
  
   # alb ingress controller
   install_lb_controller
