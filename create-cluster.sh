@@ -213,7 +213,7 @@ main() {
   #configure_service_accounts
  
   # alb ingress controller
-  install_lb_controller
+  #install_lb_controller
 
   # external dns
   install_externaldns_helm_chart

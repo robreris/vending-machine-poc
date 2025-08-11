@@ -24,18 +24,7 @@ cd apps/backend
 docker build -t backend-microservice .
 ```
 
-You'll need to update the deployment specs in k8s.yaml with the repository URIs. For example:
-
-```
-...
-    spec:
-      containers:
-      - name: backend
-        image: <paste your repository URI here>
-        ports:
-        - containerPort: 5000
-...
-```
+The Makefile contains steps to deploy the AWS Load Balancer Controller and External DNS into your cluster.
 
 To configure the AWS Load Balancer Controller with TLS, you can set up a Route 53 Hosted Zone and request a certificate with AWS ACM for your domain name. Please reference these links for more information on how to do that:
 
@@ -43,28 +32,20 @@ To configure the AWS Load Balancer Controller with TLS, you can set up a Route 5
 * https://docs.aws.amazon.com/acm/latest/userguide/acm-public-certificates.html
 * https://docs.aws.amazon.com/acm/latest/userguide/dns-validation.html
 
-Once you have a Route 53 hosted zone and ACM certificate set up, [External DNS](https://artifacthub.io/packages/helm/bitnami/external-dns) can be used to update the former each time you create/destroy the Ingress objects. Be sure to update the Ingress object annotations in k8s.yaml with the ACM certificate ARN and and your hostname:
-
-```
-...
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/certificate-arn: <paste your ACM certificate ARN here>
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-    external-dns.alpha.kubernetes.io/hostname: <paste your DNS/hostname here; e.g. myapp.com>
-spec:
-  rules:
-    - host: <paste your DNS/hostname here>
-      http:
-        paths:
-...
-```
+Once you have a Route 53 hosted zone and ACM certificate set up, [External DNS](https://artifacthub.io/packages/helm/bitnami/external-dns) can be used to update the former each time you create/destroy the Ingress objects.
 
 **Note on certificates:** The hostname you choose must exactly match your certificate domain name, but you can use wildcard domains. Say you have a Route 53 hosted zone for myapps.com. You can request a certificate for *.myapps.com, and then for your hostname in k8s.yaml, you can specify any subdomain you like for the hostname (vm-test.myapps.com, myvm.myapps.com, etc.). 
 
-After updating k8s.yaml, to go ahead and deploy the cluster, IAM roles, k8s service accounts, and install the External DNS and AWS Load Balancer contoller helm charts, run the create script:
+Update the values.yaml files in `apps/backend` and `apps/frontend` with the requisite details including port, hostname, certificate ARN information. Then update the values as needed/desired in the `Makefile` config section, and deploy:
 
 ```
-./create_cluster.sh
+make up
 ```
 
+To launch frontend and backend apps:
+
+```
+helm upgrade --install frontend ./apps/charts/shared -f apps/frontend/values.yaml -n default
+helm upgrade --install greeting-backend ./apps/charts/shared -f apps/greeting-backend/values.yaml -n default
+```
 
