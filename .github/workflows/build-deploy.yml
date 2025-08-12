@@ -5,13 +5,22 @@ on:
     branches: [ "main" ]
     paths:
       - "apps/**"
+      - "arch/registry/**"
       - "modules/microservice-ecr/**"
   pull_request:
     branches: [ "main" ]
     paths:
       - "apps/**"
+      - "arch/registry/**"
       - "modules/microservice-ecr/**"
   workflow_dispatch:
+    inputs:
+      force_delete:
+        description: "Allow Terraform to delete ECR repos with images"
+        required: false
+        default: "false"
+        type: choice
+        options: [ "false", "true" ]
 
 permissions:
   id-token: write
@@ -20,170 +29,185 @@ permissions:
 env:
   AWS_REGION: us-east-1
   APPS_ROOT: apps
-  TF_MODULE_DIR: modules/microservice-ecr
-  CHART_PATH: apps/charts/shared-microservice       # adjust if different
+  SHARED_CHART: apps/charts/shared
   DEFAULT_NAMESPACE: vm-apps
 
 jobs:
   discover:
-    name: Discover changed services
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      services_json: ${{ steps.out.outputs.services_json }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: List changed files
-        id: diff
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            git diff --name-only origin/${{ github.base_ref }}...${{ github.sha }} > changed.txt
-          elif [[ "${{ github.event.before }}" != "" ]]; then
-            git diff --name-only ${{ github.event.before }} ${{ github.sha }} > changed.txt
-          else
-            # first run or manual
-            git diff --name-only HEAD~1 HEAD > changed.txt || true
-          fi
-
-          echo "Changed files:"
-          cat changed.txt || true
-
-      - name: Compute service matrix
-        id: set-matrix
-        shell: bash
+      - id: out
         run: |
           set -euo pipefail
-          
-          APPS_ROOT="${APPS_ROOT:-apps}"
-          CHART_PATH="${CHART_PATH:-apps/charts/shared}"
-          
-          # List all app folders under apps/, excluding the charts dir
-          mapfile -t ALL_SERVICES < <(find "${APPS_ROOT}" -maxdepth 1 -mindepth 1 -type d -printf "%f\n" \
-            | grep -v "^charts$" | sort)
-          
-          # If the shared chart or the ECR module changed → redeploy ALL services
-          if grep -Fq "${CHART_PATH}/" changed.txt || grep -q "^modules/microservice-ecr/" changed.txt; then
-            SERVICES=( "${ALL_SERVICES[@]}" )
-          else
-            # Otherwise, only services whose own files changed
-            mapfile -t SERVICES < <(
-              grep -E "^${APPS_ROOT}/[^/]+" changed.txt \
-              | cut -d/ -f2 \
-              | grep -v "^charts$" \
-              | sort -u || true
-            )
-          fi
-          
+          # all first-level dirs under apps/, excluding 'charts'
+          mapfile -t SERVICES < <(find "${APPS_ROOT}" -maxdepth 1 -mindepth 1 -type d -printf "%f\n" | grep -v '^charts$' | sort)
           if [[ ${#SERVICES[@]} -eq 0 ]]; then
-            echo '{"include":[]}' > matrix.json
+            echo "No services found under ${APPS_ROOT}"
+            echo '[]' > services.json
           else
-            printf '{ "include": [' > matrix.json
+            printf '[' > services.json
             for i in "${!SERVICES[@]}"; do
-              svc="${SERVICES[$i]}"
-              printf '%s{"service":"%s"}' "$([[ $i -gt 0 ]] && echo ',')" "$svc"
+              printf '%s"%s"' "$([[ $i -gt 0 ]] && echo ',')" "${SERVICES[$i]}"
             done
-            printf '] }\n' >> matrix.json
+            printf ']\n' >> services.json
           fi
-          
-          echo "matrix=$(cat matrix.json)" >> "$GITHUB_OUTPUT"
-           
-  build-deploy:
-    name: Build & Deploy (${{ matrix.service }})
-    needs: discover
-    if: ${{ fromJson(needs.discover.outputs.matrix).include && fromJson(needs.discover.outputs.matrix).include[0] != null }}
+          echo "services_json=$(cat services.json)" >> "$GITHUB_OUTPUT"
+          echo "Discovered services: $(cat services.json)"
+
+  reconcile-ecr:
+    name: Reconcile ECR repos
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
-
-    concurrency:
-      group: ci-${{ matrix.service }}
-      cancel-in-progress: false
-
-    env:
-      SERVICE: ${{ matrix.service }}
-      SERVICE_DIR: apps/${{ matrix.service }}
-      TF_DIR: apps/${{ matrix.service }}/terraform
-
+    needs: discover
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials (CI role)
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.CI_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # --- Terraform: create/ensure ECR repo ---
-      - name: Terraform Init & Apply
-        working-directory: ${{ env.TF_DIR }}
+      - name: Terraform Apply (fleet)
+        working-directory: arch/registry
+        env:
+          TF_CLI_ARGS_plan: -input=false
+          TF_CLI_ARGS_apply: -input=false -auto-approve
         run: |
-          terraform init -input=false
-          terraform apply -auto-approve -input=false
-      - name: Get ECR repo URL
-        id: tfout
-        working-directory: ${{ env.TF_DIR }}
-        run: |
-          echo "repo_url=$(terraform output -raw repository_url)" >> $GITHUB_OUTPUT
+          sudo apt-get update -y && sudo apt-get install -y jq
+          terraform init
+          SVCS='${{ needs.discover.outputs.services_json }}'
+          FORCE='${{ inputs.force_delete || 'false' }}'
+          terraform apply \
+            -var="services=$(echo "$SVCS" | jq -cr 'map(.) | unique | .')" \
+            -var="force_delete=$FORCE"
 
-      # --- Build & Push image ---
+      - name: Output ECR map
+        id: ecrmap
+        working-directory: arch/registry
+        run: |
+          sudo apt-get install -y jq >/dev/null 2>&1 || true
+          terraform output -json repository_urls > repos.json
+          echo "repos_json=$(cat repos.json)" >> "$GITHUB_OUTPUT"
+
+  build-push:
+    name: Build & Push (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: [discover, reconcile-ecr]
+    if: ${{ fromJson(needs.discover.outputs.services_json)[0] != null }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJson(needs.discover.outputs.services_json) }}
+    env:
+      SERVICE_DIR: apps/${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve repo URL
+        id: repo
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          echo '${{ needs.reconcile-ecr.outputs.repos_json }}' > repos.json || true
+          # If outputs aren't available (older Actions behavior), pull from TF state as fallback
+          if [[ ! -s repos.json ]]; then
+            echo "Falling back to per-service repo URL via AWS CLI"
+            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+            echo "{\"${{ matrix.service }}\":\"${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.service }}\"}" > repos.json
+          fi
+          IMAGE=$(jq -r --arg s "${{ matrix.service }}" '.[$s]' repos.json)
+          echo "image_repo=$IMAGE" >> "$GITHUB_OUTPUT"
+
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build & Push Docker image
+      - name: Build & Push
         id: build
         working-directory: ${{ env.SERVICE_DIR }}
         run: |
-          IMAGE="${{ steps.tfout.outputs.repo_url }}"
+          IMAGE="${{ steps.repo.outputs.image_repo }}"
           TAG="${GITHUB_SHA::12}"
           docker build -t "$IMAGE:$TAG" .
           docker push "$IMAGE:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-      # --- Helm deploy using service values.yaml ---
-      - name: Install yq, kubectl, helm
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y jq
-          # yq (Go version)
-          YQ_VER="v4.44.3"
-          wget -q "https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64.tar.gz"
-          tar -xzf yq_linux_amd64.tar.gz && sudo mv yq_linux_amd64 /usr/local/bin/yq
-          yq --version
-          # kubectl
-          curl -sSL -o kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
-          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-          # helm
-          curl -sSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-
-      - name: Configure kube access
-        run: |
-          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > kubeconfig
-          echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
-          kubectl version --client
-          helm version
-
-      - name: Determine namespace from values.yaml (fallback -> $DEFAULT_NAMESPACE)
-        id: ns
-        run: |
-          VALUES="${SERVICE_DIR}/values.yaml"
-          if [[ -f "$VALUES" ]]; then
-            NS=$(yq -r '.namespace // ""' "$VALUES")
-          fi
-          if [[ -z "${NS:-}" || "${NS}" == "null" ]]; then
-            NS="${DEFAULT_NAMESPACE}"
-          fi
-          echo "namespace=$NS" >> $GITHUB_OUTPUT
-          echo "Using namespace: $NS"
-
-      - name: Helm upgrade --install
-        env:
-          KUBECONFIG: ${{ env.KUBECONFIG }}
-        run: |
-          helm upgrade --install "${SERVICE}" "${CHART_PATH}" \
-            -n "${{ steps.ns.outputs.namespace }}" --create-namespace \
-            -f "${SERVICE_DIR}/values.yaml" \
-            --set image.repository=${{ steps.tfout.outputs.repo_url }} \
-            --set image.tag=${{ steps.build.outputs.tag }}
+#  deploy:
+#    name: Helm Deploy (${{ matrix.service }})
+#    runs-on: ubuntu-latest
+#    needs: [discover, reconcile-ecr, build-push]
+#    if: ${{ fromJson(needs.discover.outputs.services_json)[0] != null }}
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        service: ${{ fromJson(needs.discover.outputs.services_json) }}
+#    env:
+#      SERVICE: ${{ matrix.service }}
+#      SERVICE_DIR: apps/${{ matrix.service }}
+#      CHART_PATH: apps/charts/shared
+#      DEFAULT_NAMESPACE: ${{ env.DEFAULT_NAMESPACE }}
+#    steps:
+#      - uses: actions/checkout@v4
+#
+#      - name: Install tools
+#        run: |
+#          sudo apt-get update -y
+#          sudo apt-get install -y jq
+#          # yq
+#          YQ_VER="v4.44.3"
+#          wget -q "https://github.com/mikefarah/yq/releases/download/${YQ_VER}/yq_linux_amd64.tar.gz"
+#          tar -xzf yq_linux_amd64.tar.gz && sudo mv yq_linux_amd64 /usr/local/bin/yq
+#          # kubectl
+#          curl -sSL -o kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl
+#          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+#          # helm
+#          curl -sSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+#
+#      - name: Configure kube access
+#        run: |
+#          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > kubeconfig
+#          echo "KUBECONFIG=$PWD/kubeconfig" >> $GITHUB_ENV
+#          kubectl version --client
+#          helm version
+#
+#      - name: Determine namespace
+#        id: ns
+#        run: |
+#          VALUES="${SERVICE_DIR}/values.yaml"
+#          NS=$(yq -r '.namespace // ""' "$VALUES" 2>/dev/null || true)
+#          [[ -z "$NS" || "$NS" == "null" ]] && NS="${DEFAULT_NAMESPACE}"
+#          echo "namespace=$NS" >> $GITHUB_OUTPUT
+#          echo "Using namespace: $NS"
+#
+#      - name: Repo URL for this service
+#        id: repo
+#        run: |
+#          echo '${{ needs.reconcile-ecr.outputs.repos_json }}' > repos.json || true
+#          if [[ ! -s repos.json ]]; then
+#            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+#            echo "{\"${{ matrix.service }}\":\"${ACCOUNT_ID}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ matrix.service }}\"}" > repos.json
+#          fi
+#          IMAGE=$(jq -r --arg s "${{ matrix.service }}" '.[$s]' repos.json)
+#          echo "image_repo=$IMAGE" >> "$GITHUB_OUTPUT"
+#
+#      - name: Image tag from build
+#        id: tag
+#        run: echo "tag=${GITHUB_SHA::12}" >> $GITHUB_OUTPUT
+#
+#      - name: Helm upgrade --install
+#        env:
+#          KUBECONFIG: ${{ env.KUBECONFIG }}
+#        run: |
+#          helm upgrade --install "${SERVICE}" "${CHART_PATH}" \
+#            -n "${{ steps.ns.outputs.namespace }}" --create-namespace \
+#            -f "${SERVICE_DIR}/values.yaml" \
+#            --set image.repository=${{ steps.repo.outputs.image_repo }} \
+#            --set image.tag=${{ steps.tag.outputs.tag }}

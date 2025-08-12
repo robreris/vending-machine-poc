@@ -23,9 +23,15 @@ variable "retain_images" {
   default = 30
 }
 
+variable "force_delete" {
+  type    = bool
+  default = false
+}
+
 resource "aws_ecr_repository" "this" {
   name                 = var.name
   image_tag_mutability = var.immutable_tags ? "IMMUTABLE" : "MUTABLE"
+  force_delete         = var.force_delete
 
   image_scanning_configuration {
     scan_on_push = var.enable_image_scanning
