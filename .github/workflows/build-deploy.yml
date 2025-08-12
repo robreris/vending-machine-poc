@@ -44,16 +44,17 @@ jobs:
         run: |
           set -euo pipefail
           # all first-level dirs under apps/, excluding 'charts'
-          mapfile -t SERVICES < <(find "${APPS_ROOT}" -maxdepth 1 -mindepth 1 -type d -printf "%f\n" | grep -v '^charts$' | sort)
+          #mapfile -t SERVICES < <(find "${APPS_ROOT}" -maxdepth 1 -mindepth 1 -type d -printf "%f\n" | grep -v '^charts$' | sort)
+          mapfile -t SERVICES < <(ls apps | grep -v '^charts$' | xargs -I {} cat ${APPS_ROOT}/{}/values.yaml | grep repository | cut -d'/' -f2)
           if [[ ${#SERVICES[@]} -eq 0 ]]; then
             echo "No services found under ${APPS_ROOT}"
             echo '[]' > services.json
           else
             printf '[' > services.json
             for i in "${!SERVICES[@]}"; do
-              printf '%s"%s"' "$([[ $i -gt 0 ]] && echo ',')" "${SERVICES[$i]}"
+              printf '%s"%s"' "$([[ $i -gt 0 ]] && echo ',')" "${SERVICES[$i]}" >> services.json
             done
-            printf ']\n' >> services.json
+            printf ']' >> services.json
           fi
           echo "services_json=$(cat services.json)" >> "$GITHUB_OUTPUT"
           echo "Discovered services: $(cat services.json)"
@@ -70,7 +71,10 @@ jobs:
         with:
           role-to-assume: ${{ secrets.CI_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.2
       - name: Terraform Apply (fleet)
         working-directory: arch/registry
         env:
