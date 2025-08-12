@@ -8,6 +8,7 @@ containerPort: 5000
 
 env:
   GREETING_BACKEND_URL: "http://backend-greeting:5000/greet"
+  MATH_BACKEND_URL: "http://math-backend:5000/sum"
 
 ingress:
   enabled: true

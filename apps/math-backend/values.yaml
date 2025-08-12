@@ -1,0 +1,10 @@
+name: backend-math
+image:
+  repository: 228122752878.dkr.ecr.us-east-1.amazonaws.com/vm-poc-backend-math
+  tag: latest
+replicas: 1
+containerPort: 5000
+servicePort: 5000
+
+ingress:
+  enabled: false

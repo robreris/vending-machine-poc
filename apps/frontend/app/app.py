@@ -17,6 +17,7 @@ app = FastAPI(
 # Backend URLs
 # -------------------------------
 GREETING_BACKEND_URL = os.environ.get("GREETING_BACKEND_URL", "http://greeting-backend:5000/greet")
+MATH_BACKEND_URL = os.environ.get("MATH_BACKEND_URL", "http://math-backend:5000/sum")
 ANALYTICS_BACKEND_URL = os.environ.get("ANALYTICS_BACKEND_URL", "http://analytics-backend:5000/events")
 
 # -------------------------------
@@ -58,6 +59,25 @@ async def greet_proxy(
     name: str = Query(..., title="Name", description="Name of the user to greet", example="Alice")
 ):
     response = requests.get(GREETING_BACKEND_URL, params={"name": name})
+    return response.json()
+
+# -------------------------------
+# Microservice: Math Backend
+# -------------------------------
+@app.get(
+    "/sum",
+    tags=["Math Backend"],
+    summary="Add two numbers",
+    description="Proxies the request to the Math Backend `/sum` endpoint and returns its response.",
+    response_model=SumResponse,
+    response_description="A JSON object containing 'a', 'b', and 'result'."
+)
+async def sum_proxy(
+    a: float = Query(..., title="a", description="First number", example=1.5),
+    b: float = Query(..., title="b", description="Second number", example=2.75),
+):
+    response = requests.get(MATH_BACKEND_URL, params={"a": a, "b": b})
+    response.raise_for_status()
     return response.json()
 
 # -------------------------------
