@@ -30,6 +30,7 @@ controllers: install-lb-controller install-externaldns ## Only install controlle
 
 .PHONY: down
 down: ## Delete the cluster (eksctl)
+        for i in `helm list -n default -o json | jq -r .[].name`; do helm uninstall $i; done
 	aws cloudformation delete-stack --stack-name eks-addon-roles
 	eksctl delete cluster --name "$(cluster_name)" --region "$(AWS_DEFAULT_REGION)"
 

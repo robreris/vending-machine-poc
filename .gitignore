@@ -1,2 +1,4 @@
 .kuberlr/*
 links
+*terraform.*
+.cluster.env
