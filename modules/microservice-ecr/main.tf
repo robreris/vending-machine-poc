@@ -15,7 +15,7 @@ variable "enable_image_scanning" {
 
 variable "immutable_tags" {
   type    = bool
-  default = true
+  default = false
 }
 
 variable "retain_images" {
