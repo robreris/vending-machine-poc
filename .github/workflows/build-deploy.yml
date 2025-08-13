@@ -101,7 +101,7 @@ jobs:
 
       - name: Build & Push image
         id: build
-        working-directory: apps/${{ steps.resolve.outputs.service }}
+        working-directory: apps/${{ steps.resolve.outputs.service }}/app
         run: |
           IMAGE="${{ steps.resolve.outputs.repo_url }}"
           TAG="${GITHUB_SHA::12}"
