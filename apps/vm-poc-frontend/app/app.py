@@ -44,6 +44,11 @@ async def post_index(request: Request, name: str = Form(...)):
 class GreetingResponse(BaseModel):
     message: str
 
+class SumResponse(BaseModel):
+    a: float
+    b: float
+    result: float
+
 # -------------------------------
 # Microservice: Greeting Backend
 # -------------------------------
