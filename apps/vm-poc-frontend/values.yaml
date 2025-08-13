@@ -1,4 +1,4 @@
-name: frontend
+name: vm-poc-frontend
 image:
   repository: 228122752878.dkr.ecr.us-east-1.amazonaws.com/vm-poc-frontend
   tag: latest
@@ -7,8 +7,8 @@ servicePort: 80
 containerPort: 5000
 
 env:
-  GREETING_BACKEND_URL: "http://backend-greeting:5000/greet"
-  MATH_BACKEND_URL: "http://math-backend:5000/sum"
+  GREETING_BACKEND_URL: "http://vm-poc-backend-greeting:5000/greet"
+  MATH_BACKEND_URL: "http://vm-poc-backend-math:5000/sum"
 
 ingress:
   enabled: true

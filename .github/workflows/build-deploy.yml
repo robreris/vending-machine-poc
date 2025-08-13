@@ -104,7 +104,7 @@ jobs:
         working-directory: apps/${{ steps.resolve.outputs.service }}/app
         run: |
           IMAGE="${{ steps.resolve.outputs.repo_url }}"
-          TAG="${GITHUB_SHA::12}"
+          TAG="latest"
           docker build -t "$IMAGE:$TAG" .
           docker push "$IMAGE:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT

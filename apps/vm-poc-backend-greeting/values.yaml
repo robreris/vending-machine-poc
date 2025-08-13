@@ -1,4 +1,4 @@
-name: backend-greeting
+name: vm-poc-backend-greeting
 image:
   repository: 228122752878.dkr.ecr.us-east-1.amazonaws.com/vm-poc-backend-greeting
   tag: latest
