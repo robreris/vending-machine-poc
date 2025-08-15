@@ -1,0 +1,15 @@
+name: vm-poc-backend-math
+image:
+  tag: latest
+replicas: 1
+containerPort: 5000
+servicePort: 5000
+
+ingress:
+  enabled: false
+  host: vm-test.robs-fortinet-apps.com
+  group:
+    name: vm-public
+    order: 30
+  path: "/sum"
+  externalDns: false
