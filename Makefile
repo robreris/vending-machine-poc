@@ -30,7 +30,7 @@ controllers: install-lb-controller install-externaldns ## Only install controlle
 
 .PHONY: down
 down: ## Delete the cluster (eksctl)
-        for i in `helm list -n default -o json | jq -r .[].name`; do helm uninstall $i; done
+	$(MAKE) uninstall-app-helm-charts || true
 	aws cloudformation delete-stack --stack-name eks-addon-roles
 	eksctl delete cluster --name "$(cluster_name)" --region "$(AWS_DEFAULT_REGION)"
 
@@ -181,3 +181,16 @@ install-externaldns: ## Install ExternalDNS (Bitnami)
 	  --set txtOwnerId=my-eks-cluster \
 	  --set serviceAccount.create=false \
 	  --set serviceAccount.name=externaldns-route53-sa
+
+# -------- Helm charts --------
+.PHONY: deploy-app-helm-charts
+deploy-app-helm-charts: 
+	helm upgrade --install frontend ./apps/charts/shared -f apps/vm-poc-frontend/values.yaml
+	helm upgrade --install backend-greeting ./apps/charts/shared -f apps/vm-poc-backend-greeting/values.yaml
+	helm upgrade --install backend-math ./apps/charts/shared -f apps/vm-poc-backend-math/values.yaml || true  
+
+.PHONY: uninstall-app-helm-charts
+uninstall-app-helm-charts: 
+	helm uninstall frontend -n default 
+	helm uninstall backend-greeting -n default 
+	helm uninstall backend-math -n default || true

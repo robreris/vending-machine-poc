@@ -8,7 +8,8 @@ provider "aws" {}
 
 module "ecr" {
   source = "../../../modules/microservice-ecr"
-  name   = "vm-poc-frontend"                     
+  #name   = "vm-poc-frontend"
+  name   = yamldecode(file("${path.root}/../values.yaml")).name                     
 }
 
 output "repository_url" {

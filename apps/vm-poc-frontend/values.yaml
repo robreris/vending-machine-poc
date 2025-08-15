@@ -1,6 +1,5 @@
 name: vm-poc-frontend
 image:
-  repository: 228122752878.dkr.ecr.us-east-1.amazonaws.com/vm-poc-frontend
   tag: latest
 replicas: 1
 servicePort: 80

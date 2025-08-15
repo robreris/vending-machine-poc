@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: {{ .Values.name }}
-          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          image: {{ .Values.ECRregistry }}/{{ .Values.name }}:{{ .Values.image.tag }}
           ports:
             - containerPort: {{ .Values.containerPort }}
           {{- if .Values.env }}

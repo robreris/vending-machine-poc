@@ -49,3 +49,50 @@ helm upgrade --install frontend ./apps/charts/shared -f apps/frontend/values.yam
 helm upgrade --install greeting-backend ./apps/charts/shared -f apps/greeting-backend/values.yaml -n default
 ```
 
+### Terraform notes
+
+`arch/registry/main.tf`
+
+Declaratively manages all ECR repositories for the environment.
+
+- Discovers services by scanning `apps/*/values.yaml`.
+- Extracts the ECR repo name.
+- Calls `modules/microservice-ecr` once per repo.
+- Exposes:
+  - `repository_urls` (map: repo_name → full ECR URL)
+  - `repo_to_service` (map: repo_name → service folder)
+
+`arch/registry/backend.tf`
+
+Manages backend in S3 and DynamoDB (for locking).
+
+`modules/microservice-ecr/`
+
+Creates one ECR repository (for an application).
+
+`apps/<service>/terraform/`
+
+Manages app-owned resources if needed. main.tf is required (along with values.yaml).
+
+### Helm notes
+
+`apps/charts/shared/templates`
+
+Templates for deployments, services, and ingress. 
+
+`apps/<service>/values.yaml`
+
+Variables for an application that helm uses in chart construction. 
+
+`apps/charts/shared/values.yaml`
+
+Variables shared across applications.
+
+### To add a new application
+
+The service folder under apps/ will need to contain a few things:
+* An `app` folder containing all application code including the Dockerfile and everything needed to containerize it
+* A `values.yaml` file. The ECR repository name will be set to the `name` defined in values.yaml. Also specify any port settings you wish to change from the defaults.
+* A `terraform` folder containing the terraform template for a new ECR repository.
+
+#### Updating the frontend

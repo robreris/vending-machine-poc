@@ -25,7 +25,7 @@ variable "retain_images" {
 
 variable "force_delete" {
   type    = bool
-  default = false
+  default = true
 }
 
 resource "aws_ecr_repository" "this" {
