@@ -1,0 +1,12 @@
+name: vm-poc-backend-fortiflex
+image:
+  tag: latest
+replicas: 1
+containerPort: 5000
+servicePort: 5000
+
+env:
+  SESSION_SECRET: "super-secret-string1234"
+
+ingress:
+  enabled: false

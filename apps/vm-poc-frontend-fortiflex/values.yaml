@@ -1,0 +1,11 @@
+name: vm-poc-frontend-fortiflex
+image:
+  tag: latest
+replicas: 1
+servicePort: 80
+containerPort: 5000
+
+ingress:
+  enabled: true
+  host: fortiflex.robs-fortinet-apps.com
+  certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/b0f6748b-5cb8-4faa-a50a-bf8a350b0c6f
