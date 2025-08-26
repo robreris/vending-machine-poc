@@ -3,7 +3,7 @@ image:
   tag: latest
 replicas: 1
 servicePort: 80
-containerPort: 5000
+containerPort: 5173
 
 ingress:
   enabled: true
