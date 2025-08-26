@@ -5,6 +5,9 @@ replicas: 1
 servicePort: 80
 containerPort: 5173
 
+env:
+  FORTIFLEX_BACKEND_URL: "http://vm-poc-backend-fortiflex:5000/"
+
 ingress:
   enabled: true
   host: fortiflex.robs-fortinet-apps.com
