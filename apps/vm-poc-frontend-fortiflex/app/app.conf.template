@@ -16,4 +16,29 @@ server {
     # If upstream uses self-signed certs, uncomment:
     # proxy_ssl_verify off;
   }
+
+  location /login {
+    proxy_pass ${FORTIFLEX_BACKEND_URL};
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    # If upstream uses self-signed certs, uncomment:
+    # proxy_ssl_verify off;
+  }
+  
+  location /logout {
+    proxy_pass ${FORTIFLEX_BACKEND_URL};
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    # If upstream uses self-signed certs, uncomment:
+    # proxy_ssl_verify off;
+  }
+
+  location /saml/ {
+    proxy_pass ${FORTIFLEX_BACKEND_URL};
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    # If upstream uses self-signed certs, uncomment:
+    # proxy_ssl_verify off;
+  }
+
 }

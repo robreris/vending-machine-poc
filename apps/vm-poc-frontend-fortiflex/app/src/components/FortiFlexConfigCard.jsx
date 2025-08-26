@@ -1,7 +1,6 @@
 import React, { useState, Fragment } from "react";
 import { toast } from "react-toastify";
 import { Dialog, Transition } from "@headlessui/react";
-import { VITE_BACKEND_HOST } from "../config";
 
 export default function FortiFlexConfigCard({ config }) {
   const [showMenu, setShowMenu] = useState(false);
@@ -17,7 +16,7 @@ export default function FortiFlexConfigCard({ config }) {
     const formattedDate = tomorrow.toISOString().split("T")[0];
 
     try {
-      const response = await fetch(`${VITE_BACKEND_HOST}/api/fortiflex/entitlements/vm/create`, {
+      const response = await fetch(`/api/fortiflex/entitlements/vm/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -45,7 +44,7 @@ export default function FortiFlexConfigCard({ config }) {
 
   const handleSubmitChanges = async () => {
     try {
-      const response = await fetch(`${VITE_BACKEND_HOST}/api/fortiflex/configs/update`, {
+      const response = await fetch(`/api/fortiflex/configs/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
