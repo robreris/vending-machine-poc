@@ -1,0 +1,19 @@
+server {
+  listen 80;
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # SPA routing
+  location / {
+    try_files $uri /index.html;
+  }
+
+  # Forward /api to whatever your Pod env says
+  location /api/ {
+    proxy_pass ${FORTIFLEX_BACKEND_URL};
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    # If upstream uses self-signed certs, uncomment:
+    # proxy_ssl_verify off;
+  }
+}
