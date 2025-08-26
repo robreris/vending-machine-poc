@@ -1,6 +1,5 @@
 // src/pages/SubmitAPICreds.jsx
 import { useState } from "react";
-import { VITE_BACKEND_HOST } from "../config";
 
 export default function SubmitAPICreds() {
   const [username, setUsername] = useState("");
@@ -16,7 +15,7 @@ export default function SubmitAPICreds() {
     setError(null);
 
     try {
-      const response = await fetch(`${VITE_BACKEND_HOST}/api/fortiflex/credentials`, {
+      const response = await fetch(`/api/fortiflex/credentials`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

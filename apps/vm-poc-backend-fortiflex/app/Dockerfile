@@ -6,4 +6,4 @@ COPY app ./app
 
 ENV DEBUG=true
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]

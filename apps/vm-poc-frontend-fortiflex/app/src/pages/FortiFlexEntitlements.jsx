@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import FortiFlexEntitlementCard from "../components/FortiFlexEntitlementCard";
-import { VITE_BACKEND_HOST } from "../config";
 
 export default function FortiFlexEntitlementsPage() {
   const [entitlements, setEntitlements] = useState([]);
@@ -9,7 +8,7 @@ export default function FortiFlexEntitlementsPage() {
   useEffect(() => {
     const fetchEntitlements = async () => {
       try {
-        const res = await fetch(`${VITE_BACKEND_HOST}/api/fortiflex/entitlements/list-all`, {
+        const res = await fetch(`/api/fortiflex/entitlements/list-all`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"

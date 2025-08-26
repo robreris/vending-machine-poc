@@ -1,9 +1,8 @@
 import React from 'react';
-import { VITE_BACKEND_HOST } from "../config";
 
 export default function LoginButton() {
   const handleLogin = () => {
-    window.location.href = `${VITE_BACKEND_HOST}/login`; // FastAPI SAML endpoint
+    window.location.href = `/login`; // FastAPI SAML endpoint
   };
 
   return (

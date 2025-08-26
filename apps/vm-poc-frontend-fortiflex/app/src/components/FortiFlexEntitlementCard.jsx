@@ -1,7 +1,6 @@
 import React, { useContext } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import 'react-toastify/dist/ReactToastify.css';
-import { VITE_BACKEND_HOST } from "../config";
 import { useSession } from "../context/SessionContext";
 import { Dialog } from '@headlessui/react';
 import { Fragment, useState } from 'react';
@@ -70,7 +69,7 @@ export default function FortiFlexEntitlementCard({ entitlement }) {
                 className="px-4 py-2 bg-blue-600 text-white rounded"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`${VITE_BACKEND_HOST}${actionModal.endpoint}`, {
+                    const res = await fetch(`${actionModal.endpoint}`, {
                       method: "PUT",
                       headers: { "Content-Type": "application/json" },
                       credentials: "include",
@@ -111,7 +110,7 @@ export default function FortiFlexEntitlementCard({ entitlement }) {
                 className="px-4 py-2 bg-blue-600 text-white rounded"
                 onClick={async () => {
                   try {
-                    const res = await fetch(`${VITE_BACKEND_HOST}/api/azuremagic`, {
+                    const res = await fetch(`/api/azuremagic`, {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       credentials: "include",

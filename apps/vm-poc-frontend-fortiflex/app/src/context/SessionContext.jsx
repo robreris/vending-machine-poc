@@ -1,4 +1,3 @@
-import { VITE_BACKEND_HOST } from "../config";
 import { createContext, useContext, useEffect, useState } from "react";
 
 export const SessionContext = createContext(null);
@@ -10,7 +9,7 @@ export const SessionProvider = ({ children }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch(`${VITE_BACKEND_HOST}/api/whoami`, {
+        const res = await fetch(`/api/whoami`, {
           credentials: 'include',
         });
         const data = await res.json();
@@ -29,7 +28,7 @@ export const SessionProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch(`${VITE_BACKEND_HOST}/logout`, {
+      await fetch(`/logout`, {
         method: "GET",
         credentials: "include",
       });

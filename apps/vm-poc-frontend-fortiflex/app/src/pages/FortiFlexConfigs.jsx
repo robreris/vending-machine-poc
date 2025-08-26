@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import FortiFlexConfigCard from "../components/FortiFlexConfigCard";
-import { VITE_BACKEND_HOST } from "../config";
 
 export default function FortiFlexConfigsPage() {
   const [configs, setConfigs] = useState([]);
@@ -10,7 +9,7 @@ export default function FortiFlexConfigsPage() {
     const fetchConfigs = async () => {
       try {
 
-        const res = await fetch(`${VITE_BACKEND_HOST}/api/fortiflex/configs/list`, {
+        const res = await fetch(`/api/fortiflex/configs/list`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
