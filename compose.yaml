@@ -1,0 +1,25 @@
+services:
+  vm-poc-backend-fortiflex:
+    build:
+      context: ./apps/vm-poc-backend-fortiflex/app
+    image: vm-poc-backend-fortiflex:local
+    environment:
+      SESSION_SECRET: ${SESSION_SECRET:-dev-secret-change-me}
+      DEBUG: "true"
+      # TF_STATE_BUCKET: your-s3-bucket
+      # TF_STATE_TABLE: your-dynamodb-table
+      # AWS_REGION: us-west-2
+    ports:
+      - "5000:5000"
+
+  vm-poc-frontend-fortiflex:
+    build:
+      context: ./apps/vm-poc-frontend-fortiflex/app
+    image: vm-poc-frontend-fortiflex:local
+    environment:
+      FORTIFLEX_BACKEND_URL: http://vm-poc-backend-fortiflex:5000
+    ports:
+      - "8080:80"
+    depends_on:
+      - vm-poc-backend-fortiflex
+
