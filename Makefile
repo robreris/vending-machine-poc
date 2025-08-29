@@ -12,7 +12,7 @@ cluster_name       ?= vending-machine-poc
 app_namespace      ?= vm-apps
 elb_controller_namespace ?= aws-elb-controller-namespace
 key_name           ?= fgt-kp
-route53_domain     ?= robs-fortinet-apps.com
+route53_domain     ?= fortinetcloudcse.com
 
 export AWS_DEFAULT_REGION
 
@@ -170,27 +170,33 @@ install-lb-controller: ## Install/upgrade AWS LB Controller (with CRD wait + ret
 # -------- ExternalDNS --------
 .PHONY: install-externaldns
 install-externaldns: ## Install ExternalDNS (Bitnami)
-	helm repo add bitnami https://charts.bitnami.com/bitnami || true
+	helm repo add external-dns https://kubernetes-sigs.github.io/external-dns/ || true
 	helm repo update
-	helm upgrade --install external-dns bitnami/external-dns \
+	helm upgrade --install external-dns external-dns/external-dns \
 	  --namespace kube-system \
-	  --set provider=aws \
+	  --set provider.name=aws \
 	  --set policy=upsert-only \
-	  --set aws.zoneType=public \
-	  --set domainFilters={$(route53_domain)} \
+	  --set domainFilters[0]=$(route53_domain) \
 	  --set txtOwnerId=my-eks-cluster \
 	  --set serviceAccount.create=false \
-	  --set serviceAccount.name=externaldns-route53-sa
+	  --set serviceAccount.name=externaldns-route53-sa \
+	  --set image.repository=registry.k8s.io/external-dns/external-dns \
+	  --set image.tag=v0.17.0 \
+	  --set sources='{ingress}' \
+	  --set extraArgs[0]=--aws-zone-type=public
 
 # -------- Helm charts --------
-.PHONY: deploy-app-helm-charts
+.PHONY: deploy-poc-helm-charts
 deploy-app-helm-charts: 
 	helm upgrade --install frontend ./apps/charts/shared -f apps/vm-poc-frontend/values.yaml
 	helm upgrade --install backend-greeting ./apps/charts/shared -f apps/vm-poc-backend-greeting/values.yaml
 	helm upgrade --install backend-math ./apps/charts/shared -f apps/vm-poc-backend-math/values.yaml || true  
 
+.PHONY: deploy-fortiflex-poc
+deploy-fortiflex-poc:
+	helm upgrade --install frontend-fortiflex ./apps/charts/shared -f apps/vm-poc-frontend-fortiflex/values.yaml -n default
+	helm upgrade --install backend-fortiflex ./apps/charts/shared -f apps/vm-poc-backend-fortiflex/values.yaml -n default
+
 .PHONY: uninstall-app-helm-charts
-uninstall-app-helm-charts: 
-	helm uninstall frontend -n default 
-	helm uninstall backend-greeting -n default 
-	helm uninstall backend-math -n default || true
+uninstall-app-helm-charts:
+	helm uninstall -n default $$(helm ls --short -n default)

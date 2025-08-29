@@ -20,7 +20,7 @@ app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://fortiflex.robs-fortinet-apps.com"],
+    allow_origins=["https://fortiflex.fortinetcloudcse.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
