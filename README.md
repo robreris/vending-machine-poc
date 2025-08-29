@@ -95,4 +95,10 @@ The service folder under apps/ will need to contain a few things:
 * A `values.yaml` file. The ECR repository name will be set to the `name` defined in values.yaml. Also specify any port settings you wish to change from the defaults.
 * A `terraform` folder containing the terraform template for a new ECR repository.
 
-#### Updating the frontend
+#### Testing with Docker Compose
+
+compose.yaml is setup for testing of vm-poc-fortiflex-frontend and vm-poc-fortiflex-backend services.
+
+```bash
+docker compose up --build
+```
