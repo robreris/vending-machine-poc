@@ -7,7 +7,7 @@ servicePort: 5000
 
 ingress:
   enabled: false
-  host: vm-test.robs-fortinet-apps.com
+  host: vm-test.fortinetcloudcse.com
   group:
     name: vm-public
     order: 30
