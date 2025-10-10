@@ -11,5 +11,5 @@ env:
 
 ingress:
   enabled: true
-  host: vm-test.robs-fortinet-apps.com
-  certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/b0f6748b-5cb8-4faa-a50a-bf8a350b0c6f
+  host: vm-test.fortinetcloudcse.com
+  certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/194f3eec-f018-47aa-be72-fec0868d16f0

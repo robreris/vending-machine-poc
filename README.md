@@ -14,17 +14,13 @@ To get started, configure your command line environment and permissions:
 aws configure sso
 ```
 
-Then, navigate to each app directory, build the images, and push to your repository.
+Update the configuration block at the top of the `Makefile` if you need to override the default AWS account, Route 53 domain, or key pair. Then bring the cluster online and install the controllers:
 
 ```
-cd apps/frontend
-docker build -t frontend-microservice .
-
-cd apps/backend
-docker build -t backend-microservice .
+make up
 ```
 
-The Makefile contains steps to deploy the AWS Load Balancer Controller and External DNS into your cluster.
+This target creates the EKS cluster, provisions the IAM roles, deploys the AWS Load Balancer Controller, and installs ExternalDNS. You can rerun individual targets (for example `make install-externaldns`) if you need to reconcile specific components.
 
 To configure the AWS Load Balancer Controller with TLS, you can set up a Route 53 Hosted Zone and request a certificate with AWS ACM for your domain name. Please reference these links for more information on how to do that:
 
@@ -36,18 +32,23 @@ Once you have a Route 53 hosted zone and ACM certificate set up, [External DNS](
 
 **Note on certificates:** The hostname you choose must exactly match your certificate domain name, but you can use wildcard domains. Say you have a Route 53 hosted zone for myapps.com. You can request a certificate for *.myapps.com, and then for your hostname in k8s.yaml, you can specify any subdomain you like for the hostname (vm-test.myapps.com, myvm.myapps.com, etc.). 
 
-Update the values.yaml files in `apps/backend` and `apps/frontend` with the requisite details including port, hostname, certificate ARN information. Then update the values as needed/desired in the `Makefile` config section, and deploy:
+Update the relevant `apps/vm-poc-*/values.yaml` files with any hostname, certificate ARN, or scaling changes you require. Sample deployments for the reference applications are available through the shared chart:
 
 ```
-make up
+make deploy-app-helm-charts
 ```
 
-To launch frontend and backend apps:
+If you need to iterate on an image locally, the Dockerfiles and source live under each service’s `app/` directory (for example `apps/vm-poc-frontend/app`). Build and push the image using the ECR repository URL exposed by Terraform or emitted by the GitHub workflow.
 
-```
-helm upgrade --install frontend ./apps/charts/shared -f apps/frontend/values.yaml -n default
-helm upgrade --install greeting-backend ./apps/charts/shared -f apps/greeting-backend/values.yaml -n default
-```
+### CI/CD workflow
+
+The `build-deploy` GitHub Actions workflow automatically:
+
+- Runs `arch/registry` Terraform to discover `apps/*/values.yaml` files and create any missing ECR repositories.
+- Builds and pushes each service image to its matching repository.
+- Can be triggered on `main`, via pull requests, or manually with `workflow_dispatch` (specify the branch/ref when launching a manual run).
+
+Because repositories are created on demand, adding a correctly structured service folder under `apps/` is enough for the workflow to reconcile the infrastructure and publish the image.
 
 ### Terraform notes
 
@@ -72,7 +73,7 @@ Creates one ECR repository (for an application).
 
 `apps/<service>/terraform/`
 
-Manages app-owned resources if needed. main.tf is required (along with values.yaml).
+Optional folder for service-owned infrastructure. The shared Terraform in `arch/registry` already provisions the ECR repositories, so create additional modules here only when the service needs extra AWS resources.
 
 ### Helm notes
 
@@ -88,12 +89,22 @@ Variables for an application that helm uses in chart construction.
 
 Variables shared across applications.
 
-### To add a new application
+### Adding a new microservice
 
-The service folder under apps/ will need to contain a few things:
-* An `app` folder containing all application code including the Dockerfile and everything needed to containerize it
-* A `values.yaml` file. The ECR repository name will be set to the `name` defined in values.yaml. Also specify any port settings you wish to change from the defaults.
-* A `terraform` folder containing the terraform template for a new ECR repository.
+1. Create a new folder under `apps/` (for example `apps/vm-poc-backend-foo`).
+2. Add an `app/` subfolder with your application code and Dockerfile. The Dockerfile will be used both locally and by the GitHub workflow during image builds.
+3. Create a `values.yaml` file that, at minimum, defines a unique `name` (this becomes the ECR repository name and the Kubernetes release name), container port, and service settings. Use the existing services as references for environment variables that wire calls to other services.
+4. (Optional) Add a `terraform/` subfolder only if the service owns additional AWS resources beyond its ECR repository.
+
+The CI workflow will automatically detect the new `values.yaml`, provision the repository, and push images on the next run. Within Kubernetes, services communicate over DNS using the Helm release name (for example `http://vm-poc-backend-greeting:5000`). Configure environment variables or application settings in `values.yaml` so your new service can call its dependencies in the same way the sample frontend points at the backend services.
+
+After the workflow publishes the image, deploy the service with the shared chart:
+
+```
+helm upgrade --install <service-name> ./apps/charts/shared -f apps/<service-name>/values.yaml -n <namespace>
+```
+
+Replace `<service-name>` with the folder you created and choose a namespace (`vm-apps` by default). Add or update Ingress configuration in `values.yaml` if the service needs external exposure; ExternalDNS will reconcile the DNS records when the controllers are installed.
 
 #### Testing with Docker Compose
 

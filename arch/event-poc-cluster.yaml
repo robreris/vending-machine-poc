@@ -4,7 +4,7 @@ kind: ClusterConfig
 metadata:
   name: vending-machine-poc
   region: us-east-1
-  version: "1.32"  # Or the latest stable version in your region
+  version: "1.30"  # Supported EKS control plane at the time of writing
 
 vpc:
   cidr: 10.0.0.0/16
