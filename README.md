@@ -143,3 +143,29 @@ To trial a brand-new microservice before wiring it into Terraform, Helm, or the 
    Omit the service name at the end if you also want the reference services running (`docker compose -f compose.yaml -f <override>.yaml up --build`).
 
 4. Iterate on the image locally: `docker compose build vm-poc-backend-foo` rebuilds just your service, and `docker compose down` tears everything down when you are finished.
+
+**Example:** The repo includes `apps/vm-poc-backend-echo`, a FastAPI echo service, plus a matching override file `compose.vm-poc-backend-echo.yaml`. Run the stack without it:
+
+```bash
+docker compose up --build
+```
+
+Then layer the echo service on top to verify the workflow end to end:
+
+```bash
+docker compose -f compose.yaml -f compose.vm-poc-backend-echo.yaml up --build
+```
+
+When the override is active the echo API is available on port 5001, so you can smoke test it with:
+
+```bash
+curl -s http://localhost:5001/echo -H 'content-type: application/json' -d '{"hello": "world"}'
+```
+
+Stop the services once you are done:
+
+```bash
+docker compose -f compose.yaml -f compose.vm-poc-backend-echo.yaml down
+```
+
+Once your service behaves correctly in Compose, promote it into the shared infrastructure by adding `apps/<service-name>/values.yaml` (so Helm and the CI workflow discover it) and, when the application needs extra AWS dependencies, extending `apps/<service-name>/terraform/` with the required modules. After those files exist, the Terraform registry module and GitHub Actions workflow will provision the ECR repository and deploy the image into the EKS cluster.

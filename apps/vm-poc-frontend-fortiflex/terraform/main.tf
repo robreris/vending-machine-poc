@@ -6,12 +6,4 @@ terraform {
 
 provider "aws" {}
 
-module "ecr" {
-  source = "../../../modules/microservice-ecr"
-  #name   = "vm-poc-frontend"
-  name   = yamldecode(file("${path.root}/../values.yaml")).name                     
-}
-
-output "repository_url" {
-  value = module.ecr.repository_url
-}
+// Insert any additional needed modules, outputs, etc. here
