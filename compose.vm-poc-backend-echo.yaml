@@ -1,0 +1,11 @@
+services:
+  vm-poc-backend-echo:
+    build:
+      context: ./apps/vm-poc-backend-echo/app
+    image: vm-poc-backend-echo:local
+    environment:
+      SERVICE_NAME: ${SERVICE_NAME:-vm-poc-backend-echo}
+    ports:
+      - "5001:5000"
+    depends_on:
+      - vm-poc-backend-fortiflex
