@@ -38,6 +38,35 @@ Update the relevant `apps/vm-poc-*/values.yaml` files with any hostname, certifi
 make deploy-app-helm-charts
 ```
 
+### Shared product catalog
+
+`make provision-dynamodb` (invoked automatically as part of `make up`) stands up a `vm-poc-products` DynamoDB table plus an IRSA-enabled IAM role that grants read access. The command appends the outputs (`PRODUCTS_TABLE_NAME`, `DYNAMODB_READER_ROLE_ARN`) to `.cluster.env`, and the `deploy-fortiflex-poc` target consumes them when it renders the backend Helm release:
+
+```
+make provision-dynamodb
+make deploy-fortiflex-poc
+```
+
+If you add additional microservices that need catalog access, reuse the same outputs when setting `serviceAccount.annotations."eks.amazonaws.com/role-arn"` and `env.PRODUCTS_TABLE_NAME` (via `helm --set` flags or by updating the service’s values file).
+
+You can also supply the table and role inline when deploying:
+
+```
+make deploy-fortiflex-poc TABLE=vm-poc-products ROLE=arn:aws:iam::<acct>:role/vm-poc-products-reader
+```
+
+Update `dynamodb/products_seed.json` with new catalog entries, then run the loader to publish them:
+
+```bash
+# Populate the AWS-hosted table
+python dynamodb/seed_products.py --table-name "$PRODUCTS_TABLE_NAME" --region $AWS_DEFAULT_REGION
+
+# If the local stack is running DynamoDB Local (see Compose section)
+python dynamodb/seed_products.py --table-name vm-poc-products-local --region us-east-1 --endpoint-url http://localhost:8000
+```
+
+`make down` automatically calls `make destroy-dynamodb`, so tearing down the cluster also removes the shared table and reader role.
+
 If you need to iterate on an image locally, the Dockerfiles and source live under each service’s `app/` directory (for example `apps/vm-poc-frontend/app`). Build and push the image using the ECR repository URL exposed by Terraform or emitted by the GitHub workflow.
 
 ### CI/CD workflow
@@ -168,4 +197,37 @@ Stop the services once you are done:
 docker compose -f compose.yaml -f compose.vm-poc-backend-echo.yaml down
 ```
 
+The compose stack also launches DynamoDB Local on `http://localhost:8000`. Seed or refresh the catalog with:
+
+```bash
+python dynamodb/seed_products.py --table-name vm-poc-products-local --region us-east-1 --endpoint-url http://localhost:8000
+```
+
+The backend points at the local table through the `PRODUCTS_TABLE_NAME`, `AWS_REGION`, and `AWS_ENDPOINT_URL_DYNAMODB` environment variables defined in `compose.yaml`, so UI changes reflect new products as soon as the seed completes.
+
 Once your service behaves correctly in Compose, promote it into the shared infrastructure by adding `apps/<service-name>/values.yaml` (so Helm and the CI workflow discover it) and, when the application needs extra AWS dependencies, extending `apps/<service-name>/terraform/` with the required modules. After those files exist, the Terraform registry module and GitHub Actions workflow will provision the ECR repository and deploy the image into the EKS cluster.
+
+## Granting Teammates Helm Access to EKS
+
+Follow these steps to let another engineer run Helm against your EKS cluster:
+
+1. **Create a cross-account IAM role (in the cluster’s AWS account).** Give it the permissions required for Helm/kubectl (for example, `eks:DescribeCluster`, `eks:ListNodegroups`, and any service-specific actions). Configure the trust policy to allow the teammate’s IAM principal (user or role, possibly from a different AWS account) to assume it.
+2. **Map the role into the cluster.** Edit the `aws-auth` ConfigMap and add the role ARN under `mapRoles`, binding it to `system:masters` (full admin) or to a limited RBAC group:
+   ```yaml
+   mapRoles:
+     - rolearn: arn:aws:iam::ACCOUNT_A:role/TeammateEKSAccess
+       username: teammate-eks-access
+       groups:
+         - system:masters
+   ```
+   Replace `ACCOUNT_A` and the role name with your actual values.
+3. **Provide bootstrap commands to the teammate.** After authenticating with AWS (for example `aws sso login --profile <profile>`), they assume the role and build a kubeconfig:
+   ```bash
+   aws sts assume-role --role-arn arn:aws:iam::ACCOUNT_A:role/TeammateEKSAccess --role-session-name teammate
+   export AWS_ACCESS_KEY_ID=...
+   export AWS_SECRET_ACCESS_KEY=...
+   export AWS_SESSION_TOKEN=...
+   aws eks update-kubeconfig --region us-east-1 --name <cluster-name>
+   ```
+   They can now run `kubectl get nodes` or `helm upgrade --install ...` against your cluster.
+4. **(Optional) Automate onboarding.** Wrap the assume-role and `aws eks update-kubeconfig` commands in a short script so future teammates can onboard quickly.

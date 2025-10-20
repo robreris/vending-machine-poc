@@ -21,3 +21,4 @@ asyncpg
 python-dotenv
 itsdangerous
 httpx
+boto3==1.35.74

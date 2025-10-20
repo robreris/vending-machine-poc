@@ -6,11 +6,18 @@ services:
     environment:
       SESSION_SECRET: ${SESSION_SECRET:-dev-secret-change-me}
       DEBUG: "true"
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      PRODUCTS_TABLE_NAME: ${PRODUCTS_TABLE_NAME:-vm-poc-products-local}
+      AWS_ENDPOINT_URL_DYNAMODB: http://dynamodb:8000
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-local}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-local}
       # TF_STATE_BUCKET: your-s3-bucket
       # TF_STATE_TABLE: your-dynamodb-table
       # AWS_REGION: us-west-2
     ports:
       - "5000:5000"
+    depends_on:
+      - dynamodb
 
   vm-poc-frontend-fortiflex:
     build:
@@ -22,4 +29,13 @@ services:
       - "8080:80"
     depends_on:
       - vm-poc-backend-fortiflex
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    command: -jar DynamoDBLocal.jar -sharedDb
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
 
+volumes:
+  dynamodb-data:

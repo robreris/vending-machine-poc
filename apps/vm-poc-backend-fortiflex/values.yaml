@@ -1,4 +1,8 @@
 name: vm-poc-backend-fortiflex
+serviceAccount:
+  create: true
+  name: vm-poc-backend-fortiflex
+  annotations: {}
 image:
   tag: latest
 replicas: 1
@@ -7,6 +11,8 @@ servicePort: 5000
 
 env:
   SESSION_SECRET: "super-secret-string1234"
+  PRODUCTS_TABLE_NAME: ""
+  AWS_REGION: us-east-1
 
 ingress:
   enabled: false

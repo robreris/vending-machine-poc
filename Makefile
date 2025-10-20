@@ -5,6 +5,13 @@ SHELL := /bin/bash
 .ONESHELL:
 .SHELLFLAGS := -eu -o pipefail -c
 
+ifneq (,$(wildcard .cluster.env))
+include .cluster.env
+endif
+
+FORTIFLEX_TABLE := $(strip $(or $(TABLE),$(PRODUCTS_TABLE_NAME)))
+FORTIFLEX_ROLE  := $(strip $(or $(ROLE),$(DYNAMODB_READER_ROLE_ARN)))
+
 # -------- Config --------
 AWS_ACCT           ?= 228122752878
 AWS_DEFAULT_REGION ?= us-east-1
@@ -23,7 +30,7 @@ help: ## Show targets
 
 # -------- Orchestration --------
 .PHONY: up
-up: create-cluster iam-oidc iam-roles extract-iam-roles configure-sa install-lb-controller install-externaldns ## Full bring-up
+up: create-cluster iam-oidc iam-roles extract-iam-roles configure-sa install-lb-controller install-externaldns provision-dynamodb ## Full bring-up
 
 .PHONY: controllers
 controllers: install-lb-controller install-externaldns ## Only install controllers
@@ -31,6 +38,7 @@ controllers: install-lb-controller install-externaldns ## Only install controlle
 .PHONY: down
 down: ## Delete the cluster (eksctl)
 	$(MAKE) uninstall-app-helm-charts || true
+	$(MAKE) destroy-dynamodb || true
 	aws cloudformation delete-stack --stack-name eks-addon-roles
 	eksctl delete cluster --name "$(cluster_name)" --region "$(AWS_DEFAULT_REGION)"
 
@@ -185,6 +193,33 @@ install-externaldns: ## Install ExternalDNS (Bitnami)
 	  --set sources='{ingress}' \
 	  --set extraArgs[0]=--aws-zone-type=public
 
+.PHONY: provision-dynamodb
+provision-dynamodb: ## Provision shared products DynamoDB table and IAM role
+	terraform -chdir=arch/dynamodb init
+	terraform -chdir=arch/dynamodb apply -auto-approve -var "cluster_name=$(cluster_name)"
+	DYNAMODB_OUTPUTS="$$(terraform -chdir=arch/dynamodb output -json)"
+	PRODUCTS_TABLE_NAME="$$(echo "$$DYNAMODB_OUTPUTS" | jq -r '.products_table_name.value')"
+	DYNAMODB_READER_ROLE_ARN="$$(echo "$$DYNAMODB_OUTPUTS" | jq -r '.dynamodb_reader_role_arn.value')"
+	if [[ -z "$$PRODUCTS_TABLE_NAME" || "$$PRODUCTS_TABLE_NAME" == "null" ]]; then \
+	  echo "Failed to capture products_table_name output" >&2; exit 1; \
+	fi
+	if [[ -z "$$DYNAMODB_READER_ROLE_ARN" || "$$DYNAMODB_READER_ROLE_ARN" == "null" ]]; then \
+	  echo "Failed to capture dynamodb_reader_role_arn output" >&2; exit 1; \
+	fi
+	touch .cluster.env
+	sed -i '/^PRODUCTS_TABLE_NAME=/d' .cluster.env || true
+	sed -i '/^DYNAMODB_READER_ROLE_ARN=/d' .cluster.env || true
+	{ echo "PRODUCTS_TABLE_NAME=$$PRODUCTS_TABLE_NAME"; echo "DYNAMODB_READER_ROLE_ARN=$$DYNAMODB_READER_ROLE_ARN"; } >> .cluster.env
+
+.PHONY: destroy-dynamodb
+destroy-dynamodb: ## Destroy shared products DynamoDB table and IAM role
+	@if [ ! -d arch/dynamodb ]; then \
+	  echo "No arch/dynamodb directory found; skipping"; \
+	else \
+	  terraform -chdir=arch/dynamodb init; \
+	  terraform -chdir=arch/dynamodb destroy -auto-approve -var "cluster_name=$(cluster_name)"; \
+	fi
+
 # -------- Helm charts --------
 .PHONY: deploy-poc-helm-charts
 deploy-app-helm-charts: 
@@ -195,7 +230,16 @@ deploy-app-helm-charts:
 .PHONY: deploy-fortiflex-poc
 deploy-fortiflex-poc:
 	helm upgrade --install frontend-fortiflex ./apps/charts/shared -f apps/vm-poc-frontend-fortiflex/values.yaml -n default
-	helm upgrade --install backend-fortiflex ./apps/charts/shared -f apps/vm-poc-backend-fortiflex/values.yaml -n default
+	if [ -z "$(FORTIFLEX_TABLE)" ] || [ -z "$(FORTIFLEX_ROLE)" ]; then \
+	  echo "Missing table/role. Provide via make variables (e.g. 'make deploy-fortiflex-poc TABLE=... ROLE=...') or run 'make provision-dynamodb' first."; \
+	  exit 1; \
+	fi
+	helm upgrade --install backend-fortiflex ./apps/charts/shared \
+	  -f apps/vm-poc-backend-fortiflex/values.yaml \
+	  -n default \
+	  --set-string env.PRODUCTS_TABLE_NAME="$(FORTIFLEX_TABLE)" \
+	  --set-string serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$(FORTIFLEX_ROLE)" \
+	  --set-string env.AWS_REGION="$(AWS_DEFAULT_REGION)"
 
 .PHONY: uninstall-app-helm-charts
 uninstall-app-helm-charts:
