@@ -12,6 +12,10 @@ spec:
       labels:
         app: {{ .Values.name }}
     spec:
+      {{- $serviceAccountName := include "shared.serviceAccountName" . }}
+      {{- if $serviceAccountName }}
+      serviceAccountName: {{ $serviceAccountName }}
+      {{- end }}
       containers:
         - name: {{ .Values.name }}
           image: {{ .Values.ECRregistry }}/{{ .Values.name }}:{{ .Values.image.tag }}
