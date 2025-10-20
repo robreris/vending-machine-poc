@@ -108,8 +108,38 @@ Replace `<service-name>` with the folder you created and choose a namespace (`vm
 
 #### Testing with Docker Compose
 
-compose.yaml is setup for testing of vm-poc-fortiflex-frontend and vm-poc-fortiflex-backend services.
+The root `compose.yaml` launches the Fortiflex reference services so you can exercise the stack locally:
 
 ```bash
 docker compose up --build
 ```
+
+To trial a brand-new microservice before wiring it into Terraform, Helm, or the CI workflow:
+
+1. Scaffold the service under `apps/<service-name>/app` with a `Dockerfile`. The compose file builds images directly from these folders, so no registry push is needed.
+2. Create a local override file (for example `compose.<service-name>.yaml`) that defines your service and any dependencies. Keep this file out of version control by storing it outside the repo or adding it to `.git/info/exclude`.
+   
+   ```yaml
+   services:
+     vm-poc-backend-foo:
+       build:
+         context: ./apps/vm-poc-backend-foo/app
+       image: vm-poc-backend-foo:local
+       environment:
+         # Example: point at another local service
+         FORTIFLEX_BACKEND_URL: http://vm-poc-backend-fortiflex:5000
+       ports:
+         - "5001:5000"
+       depends_on:
+         - vm-poc-backend-fortiflex
+   ```
+
+3. Start Compose with both files so your local definition is layered on top of the baseline stack:
+
+   ```bash
+   docker compose -f compose.yaml -f compose.vm-poc-backend-foo.yaml up --build vm-poc-backend-foo
+   ```
+
+   Omit the service name at the end if you also want the reference services running (`docker compose -f compose.yaml -f <override>.yaml up --build`).
+
+4. Iterate on the image locally: `docker compose build vm-poc-backend-foo` rebuilds just your service, and `docker compose down` tears everything down when you are finished.
