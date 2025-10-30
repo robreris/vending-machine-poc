@@ -278,4 +278,9 @@ Verify access:
 kubectl auth can-i list pods -n <team-namespace>
 ```
 
+To use the python script with a DynamoDB table cross-account, run:
+```bash
+AWS_PROFILE=our-eks python dynamodb/seed_products.py --table-name "$PRODUCTS_TABLE_NAME" --region $AWS_DEFAULT_REGION
+```
+
 To revoke access, remove the user role ARN from the trust policy.
