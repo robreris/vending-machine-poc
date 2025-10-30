@@ -1,7 +1,0 @@
-- [x] Provision DynamoDB table via shared Terraform (`arch/dynamodb`) and attach a read-only IAM role for consumer service accounts.
-- [x] Capture table name and IAM role ARN in `.cluster.env` via `make provision-dynamodb`.
-- [x] Update `apps/vm-poc-backend-fortiflex/values.yaml` to set `serviceAccount` metadata and pass `PRODUCTS_TABLE_NAME`/`AWS_REGION`.
-- [x] Extend the shared Helm chart to accept service account annotations (e.g., `eks.amazonaws.com/role-arn`) sourced from `.cluster.env`.
-- [x] Refactor `apps/vm-poc-backend-fortiflex/app/app/api/products.py` to read from DynamoDB using boto3, honoring `AWS_ENDPOINT_URL_DYNAMODB` for local DynamoDB.
-- [x] Add a DynamoDB Local container + environment overrides to `compose.yaml`, and seed it with `dynamodb/products_seed.json`.
-- [x] Add a reusable seed script (`dynamodb/seed_products.py`) to load JSON product records into DynamoDB for local and CI use.
