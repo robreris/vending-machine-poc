@@ -207,27 +207,75 @@ The backend points at the local table through the `PRODUCTS_TABLE_NAME`, `AWS_RE
 
 Once your service behaves correctly in Compose, promote it into the shared infrastructure by adding `apps/<service-name>/values.yaml` (so Helm and the CI workflow discover it) and, when the application needs extra AWS dependencies, extending `apps/<service-name>/terraform/` with the required modules. After those files exist, the Terraform registry module and GitHub Actions workflow will provision the ECR repository and deploy the image into the EKS cluster.
 
-## Granting Teammates Helm Access to EKS
+## Granting Teammates Cluster Access From Another AWS Account
 
-Follow these steps to let another engineer run Helm against your EKS cluster:
+These files create an IAM role granting external users access to the EKS cluster:
 
-1. **Create a cross-account IAM role (in the cluster’s AWS account).** Give it the permissions required for Helm/kubectl (for example, `eks:DescribeCluster`, `eks:ListNodegroups`, and any service-specific actions). Configure the trust policy to allow the teammate’s IAM principal (user or role, possibly from a different AWS account) to assume it.
-2. **Map the role into the cluster.** Edit the `aws-auth` ConfigMap and add the role ARN under `mapRoles`, binding it to `system:masters` (full admin) or to a limited RBAC group:
-   ```yaml
-   mapRoles:
-     - rolearn: arn:aws:iam::ACCOUNT_A:role/TeammateEKSAccess
-       username: teammate-eks-access
-       groups:
-         - system:masters
-   ```
-   Replace `ACCOUNT_A` and the role name with your actual values.
-3. **Provide bootstrap commands to the teammate.** After authenticating with AWS (for example `aws sso login --profile <profile>`), they assume the role and build a kubeconfig:
+| File                                      | Description                                                               |
+| ----------------------------------------- | ------------------------------------------------------------------------- |
+| ```arch/iam/ca-tr-pol.json```             | Allows specified external IAM principals to assume our access role.       |
+| ```arch/iam/eks-describe-inline.json```   | AWS EKS permissions policy                                                |
+
+### One-Time: Create the Access Role (per external principal)
+
+1. Edit `trust-policy.json` to include the teammate’s IAM principal ARN  
+   _(recommended: use a unique ExternalId per teammate)_
+2. Create the role:
    ```bash
-   aws sts assume-role --role-arn arn:aws:iam::ACCOUNT_A:role/TeammateEKSAccess --role-session-name teammate
-   export AWS_ACCESS_KEY_ID=...
-   export AWS_SECRET_ACCESS_KEY=...
-   export AWS_SESSION_TOKEN=...
-   aws eks update-kubeconfig --region us-east-1 --name <cluster-name>
+   aws iam create-role \
+     --role-name VMPOCAccessRole \
+     --assume-role-policy-document file://arch/iam/ca-tr-pol.json
    ```
-   They can now run `kubectl get nodes` or `helm upgrade --install ...` against your cluster.
-4. **(Optional) Automate onboarding.** Wrap the assume-role and `aws eks update-kubeconfig` commands in a short script so future teammates can onboard quickly.
+3. Attach minimal permissions:
+   ```
+   aws iam put-role-policy \
+     --role-name VMPOCAccessRole \
+     --policy-name EKSKubeconfigDescribe \
+     --policy-document file://arch/iam/eks-describe-inline.json
+   ```
+
+### Per-Cluster: Grant Access to the Role
+
+Run once per cluster lifecycle:
+
+```bash
+aws eks create-access-entry \
+  --cluster-name vending-machine-poc \
+  --principal-arn arn:aws:iam::<OUR_ACCOUNT_ID>:role/VMPOCAccessRole \
+  --type STANDARD
+```
+
+Grant namespace-level permissions:
+```bash
+aws eks associate-access-policy \
+  --cluster-name vending-machine-poc \
+  --principal-arn arn:aws:iam::<OUR_ACCOUNT_ID>:role/VMPOCAccessRole \
+  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy \
+  --access-scope type=namespace,namespaces=<team-namespace>
+```
+
+### Contributor Setup
+
+Add to ```~/.aws/config```:
+
+```bash
+[profile our-eks]
+role_arn = arn:aws:iam::<OUR_ACCOUNT_ID>:role/VMPOCAccessRole
+source_profile = default
+external_id = <EXTERNAL_ID>
+region = us-east-1
+```
+
+Configure kubeconfig:
+
+```bash
+AWS_PROFILE=our-eks aws eks update-kubeconfig --name vending-machine-poc --region us-east-1
+```
+
+Verify access:
+
+```bash
+kubectl auth can-i list pods -n <team-namespace>
+```
+
+To revoke access, remove the user role ARN from the trust policy.
