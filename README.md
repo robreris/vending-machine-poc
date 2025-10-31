@@ -278,7 +278,14 @@ Verify access:
 kubectl auth can-i list pods -n <team-namespace>
 ```
 
-To use the python script with a DynamoDB table cross-account, run:
+To launch helm charts via the Makefile command, run the following (referencing the DynamoDB table name and IRSA role that backend pods assume inside the cluster to access DynamoDB):
+```bash
+make deploy-fortiflex-poc \
+       TABLE=vm-poc-products \
+       ROLE=arn:aws:iam::<acct>:role/vm-poc-products-reader
+```
+
+To use the python script for cross-account table updates, run:
 ```bash
 AWS_PROFILE=our-eks python dynamodb/seed_products.py --table-name "$PRODUCTS_TABLE_NAME" --region $AWS_DEFAULT_REGION
 ```
