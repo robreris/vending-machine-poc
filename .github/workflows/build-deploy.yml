@@ -115,7 +115,23 @@ jobs:
         run: |
           IMAGE="${{ steps.resolve.outputs.repo_url }}"
           TAG="latest"
-          docker build -t "$IMAGE:$TAG" .
+          
+          # Special handling for frontend builds that need backend URL at build time
+          if [[ "${{ steps.resolve.outputs.service }}" == *"frontend"* ]]; then
+            # Extract service name to determine backend service DNS
+            SERVICE_NAME="${{ steps.resolve.outputs.service }}"
+            if [[ "$SERVICE_NAME" == "vm-poc-frontend-fortiflex-marketplace" ]]; then
+              # Build with K8s internal backend DNS
+              docker build \
+                --build-arg VITE_BACKEND_HOST=http://vm-poc-backend-fortiflex-marketplace:8000 \
+                -t "$IMAGE:$TAG" .
+            else
+              docker build -t "$IMAGE:$TAG" .
+            fi
+          else
+            docker build -t "$IMAGE:$TAG" .
+          fi
+          
           docker push "$IMAGE:$TAG"
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
