@@ -15,6 +15,7 @@ FORTIFLEX_ROLE  := $(strip $(or $(ROLE),$(DYNAMODB_READER_ROLE_ARN)))
 # -------- Config --------
 AWS_ACCT           ?= 228122752878
 AWS_DEFAULT_REGION ?= us-east-1
+AWS_PROFILE        ?= our-eks
 cluster_name       ?= vending-machine-poc
 app_namespace      ?= vm-apps
 elb_controller_namespace ?= aws-elb-controller-namespace
@@ -22,6 +23,7 @@ key_name           ?= fgt-kp
 route53_domain     ?= fortinetcloudcse.com
 
 export AWS_DEFAULT_REGION
+export AWS_PROFILE
 
 # -------- Help --------
 .PHONY: help
@@ -225,7 +227,17 @@ destroy-dynamodb: ## Destroy shared products DynamoDB table and IAM role
 deploy-app-helm-charts: 
 	helm upgrade --install frontend ./apps/charts/shared -f apps/vm-poc-frontend/values.yaml
 	helm upgrade --install backend-greeting ./apps/charts/shared -f apps/vm-poc-backend-greeting/values.yaml
-	helm upgrade --install backend-math ./apps/charts/shared -f apps/vm-poc-backend-math/values.yaml || true  
+	helm upgrade --install backend-math ./apps/charts/shared -f apps/vm-poc-backend-math/values.yaml || true
+
+.PHONY: deploy-fortiflex-marketplace
+deploy-fortiflex-marketplace:
+	@echo "Deploying FortiFlex Marketplace frontend and backend to default namespace..."
+	helm upgrade --install vm-poc-frontend-fortiflex-marketplace ./apps/charts/shared \
+	  -f apps/vm-poc-frontend-fortiflex-marketplace/values.yaml \
+	  -n default
+	helm upgrade --install vm-poc-backend-fortiflex-marketplace ./apps/charts/shared \
+	  -f apps/vm-poc-backend-fortiflex-marketplace/values.yaml \
+	  -n default  
 
 .PHONY: deploy-fortiflex-poc
 deploy-fortiflex-poc:
