@@ -14,6 +14,14 @@ To get started, configure your command line environment and permissions:
 aws configure sso
 ```
 
+Clone the repository and initialize its private submodules (contains the FortiFlex marketplace backend):
+
+```
+git clone git@github.com:FortinetCloudCSE/vending-machine-poc.git
+cd vending-machine-poc
+git submodule update --init --recursive
+```
+
 Update the configuration block at the top of the `Makefile` if you need to override the default AWS account, Route 53 domain, or key pair. Then bring the cluster online and install the controllers:
 
 ```
@@ -78,6 +86,17 @@ The `build-deploy` GitHub Actions workflow automatically:
 - Can be triggered on `main`, via pull requests, or manually with `workflow_dispatch` (specify the branch/ref when launching a manual run).
 
 Because repositories are created on demand, adding a correctly structured service folder under `apps/` is enough for the workflow to reconcile the infrastructure and publish the image.
+
+If you fork this repository or run the GitHub Actions workflow in another organization, create a repository secret (for example `SUBMODULE_PAT`) that holds a Personal Access Token with read access to `FortinetCloudCSE/cloudcse-fortiflex-marketplace`. The workflow’s `actions/checkout` step must include:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    submodules: recursive
+    token: ${{ secrets.SUBMODULE_PAT }}
+```
+
+Without the token, CI cannot pull the private submodule that the FortiFlex marketplace services depend on.
 
 ### Terraform notes
 
