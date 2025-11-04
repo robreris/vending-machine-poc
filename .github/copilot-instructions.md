@@ -61,11 +61,11 @@ docker compose -f compose.yaml -f compose.vm-poc-backend-echo.yaml up --build
 
 **Option 2: External repo as Git submodule** (see `apps/FORTIFLEX_MARKETPLACE_INTEGRATION.md`)
 1. **Add submodule**: `git submodule add -b <branch> <repo-url> apps/<submodule-name>`
-2. **Create service wrappers**: 
-   - `apps/vm-poc-{type}-{name}/values.yaml` (Helm config)
-   - `apps/vm-poc-{type}-{name}/app` → symlink to `../submodule-name/{backend|frontend}`
-3. **Update submodule**: `git submodule update --remote` pulls latest code from external repo
-4. **CI/CD**: GitHub Actions auto-checks out submodules, builds from symlinked `app/` directories
+2. **Create compose override**: Create `compose.<submodule-name>.yaml` with build contexts pointing to `./apps/<submodule-name>/{backend|frontend}`
+3. **Pass build args**: Use `build.args` in compose file to inject environment-specific values (e.g., `VITE_BACKEND_HOST` for frontend builds)
+4. **Update submodule**: `cd apps/<submodule-name> && git pull origin <branch>` to pull latest code from external repo
+5. **CRITICAL**: **ALL CODE CHANGES** must be made in the original repo, committed, pushed, then pulled into the submodule. **NEVER edit code directly in `apps/<submodule-name>/`**
+6. **CI/CD**: GitHub Actions auto-checks out submodules (`submodules: recursive`), builds from submodule directories
 
 ### CI/CD Automation (`.github/workflows/build-deploy.yml`)
 - **Triggers**: Push to `main` (or manual `workflow_dispatch`)
@@ -160,7 +160,9 @@ python dynamodb/seed_products.py --table-name vm-poc-products-local --region us-
 5. **CloudFormation stack persistence**: `make down` attempts to delete `eks-addon-roles` stack, but manual cleanup may be needed if stack drift occurs
 6. **Service account annotations**: For DynamoDB access, `serviceAccount.create=true` AND `annotations."eks.amazonaws.com/role-arn"` must both be set (see `vm-poc-backend-fortiflex/values.yaml`)
 7. **Submodule not initialized**: If builds fail with missing source files, run `git submodule update --init --recursive`
-8. **Stale submodule reference**: After updating code in external repo, run `git submodule update --remote` in vending-machine-poc to pull latest changes
+8. **Stale submodule reference**: After updating code in external repo, run `cd apps/<submodule> && git pull origin <branch>` in vending-machine-poc to pull latest changes
+9. **NEVER edit submodule code directly**: All code changes MUST be made in the original repo (e.g., `fortigate-marketplace`), committed, pushed, then pulled into `apps/<submodule>/`. Docker builds use the submodule directory directly, NOT symlinks.
+10. **Build args for multi-environment**: When integrating external frontends, pass build args (e.g., `VITE_BACKEND_HOST`) via `compose.yaml` `build.args` to inject environment-specific URLs at build time
 
 ## Key Files Reference
 

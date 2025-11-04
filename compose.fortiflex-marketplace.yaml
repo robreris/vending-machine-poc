@@ -15,9 +15,10 @@ services:
     build:
       context: ./apps/fortiflex-marketplace/frontend
       dockerfile: Dockerfile
+      args:
+        # Build-time env var for Vite to embed backend URL
+        VITE_BACKEND_HOST: http://localhost:8001
     image: vm-poc-frontend-fortiflex-marketplace:local
-    environment:
-      VITE_API_BASE_URL: http://vm-poc-backend-fortiflex-marketplace:8000
     ports:
       - "8081:80"
     depends_on:
