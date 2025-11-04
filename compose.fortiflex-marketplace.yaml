@@ -1,0 +1,25 @@
+services:
+  vm-poc-backend-fortiflex-marketplace:
+    build:
+      context: ./apps/fortiflex-marketplace/backend
+      dockerfile: Dockerfile
+    image: vm-poc-backend-fortiflex-marketplace:local
+    environment:
+      SESSION_SECRET: ${SESSION_SECRET:-dev-secret-change-me}
+      DEBUG: "true"
+    ports:
+      - "8001:8000"
+    # Uses default CMD from Dockerfile (no SSL - production-ready)
+
+  vm-poc-frontend-fortiflex-marketplace:
+    build:
+      context: ./apps/fortiflex-marketplace/frontend
+      dockerfile: Dockerfile
+    image: vm-poc-frontend-fortiflex-marketplace:local
+    environment:
+      VITE_API_BASE_URL: http://vm-poc-backend-fortiflex-marketplace:8000
+    ports:
+      - "8081:80"
+    depends_on:
+      - vm-poc-backend-fortiflex-marketplace
+    # Uses default CMD from Dockerfile (no SSL - production-ready)

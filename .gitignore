@@ -2,3 +2,5 @@
 links
 *terraform.*
 .cluster.env
+**/.terraform/
+**/.terraform.lock.hcl
