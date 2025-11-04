@@ -40,6 +40,7 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           submodules: recursive
+          token: ${{ secrets.SUBMODULE_PAT }}
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.CI_ROLE_ARN }}
@@ -85,6 +86,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          token: ${{ secrets.SUBMODULE_PAT }}
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.CI_ROLE_ARN }}
