@@ -1,0 +1,4 @@
+[submodule "apps/fortiflex-marketplace"]
+	path = apps/fortiflex-marketplace
+	url = https://github.com/FortinetCloudCSE/cloudcse-fortiflex-marketplace.git
+	branch = main

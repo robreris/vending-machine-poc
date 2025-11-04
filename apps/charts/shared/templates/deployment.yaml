@@ -21,6 +21,12 @@ spec:
           image: {{ .Values.ECRregistry }}/{{ .Values.name }}:{{ .Values.image.tag }}
           ports:
             - containerPort: {{ .Values.containerPort }}
+          {{- if .Values.command }}
+          command:
+            {{- range .Values.command }}
+            - {{ . | quote }}
+            {{- end }}
+          {{- end }}
           {{- if .Values.env }}
           env:
             {{- range $key, $value := .Values.env }}

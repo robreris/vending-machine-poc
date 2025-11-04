@@ -1,0 +1,24 @@
+name: vm-poc-backend-fortiflex-marketplace
+serviceAccount:
+  create: true
+  name: vm-poc-backend-fortiflex-marketplace
+  annotations: {}
+image:
+  tag: latest
+replicas: 1
+containerPort: 8000
+servicePort: 8000
+
+env:
+  SESSION_SECRET: "super-secret-string1234"
+  DEBUG: "false"
+  # Add other backend env vars as needed
+  # PRODUCTS_TABLE_NAME: ""
+  # AWS_REGION: us-east-1
+
+ingress:
+  enabled: false
+  # Enable when ready for external access:
+  # enabled: true
+  # host: fortiflex-marketplace.fortinetcloudcse.com
+  # certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/your-cert-arn

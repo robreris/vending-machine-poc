@@ -1,0 +1,16 @@
+name: vm-poc-frontend-fortiflex-marketplace
+image:
+  tag: latest
+replicas: 1
+servicePort: 80
+containerPort: 80
+
+env:
+  VITE_API_BASE_URL: "http://vm-poc-backend-fortiflex-marketplace:8000"
+
+ingress:
+  enabled: false
+  # Enable and configure when ready for external access:
+  # enabled: true
+  # host: fortiflex-marketplace.fortinetcloudcse.com
+  # certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/your-cert-arn
