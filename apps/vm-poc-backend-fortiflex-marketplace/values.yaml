@@ -17,8 +17,6 @@ env:
   # AWS_REGION: us-east-1
 
 ingress:
-  enabled: false
-  # Enable when ready for external access:
-  # enabled: true
-  # host: fortiflex-marketplace.fortinetcloudcse.com
-  # certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/your-cert-arn
+  enabled: true
+  host: fortiflex-marketplace-api.fortinetcloudcse.com
+  certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/194f3eec-f018-47aa-be72-fec0868d16f0

@@ -123,9 +123,9 @@ jobs:
             # Extract service name to determine backend service DNS
             SERVICE_NAME="${{ steps.resolve.outputs.service }}"
             if [[ "$SERVICE_NAME" == "vm-poc-frontend-fortiflex-marketplace" ]]; then
-              # Build with K8s internal backend DNS
+              # Build with public backend URL (ingress host)
               docker build \
-                --build-arg VITE_BACKEND_HOST=http://vm-poc-backend-fortiflex-marketplace:8000 \
+                --build-arg VITE_BACKEND_HOST=https://fortiflex-marketplace-api.fortinetcloudcse.com \
                 -t "$IMAGE:$TAG" .
             else
               docker build -t "$IMAGE:$TAG" .
