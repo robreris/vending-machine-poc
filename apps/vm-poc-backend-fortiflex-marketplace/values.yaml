@@ -1,3 +1,4 @@
+
 name: vm-poc-backend-fortiflex-marketplace
 serviceAccount:
   create: true
@@ -8,6 +9,7 @@ image:
 replicas: 1
 containerPort: 8000
 servicePort: 8000
+ingressPort: 8000
 
 env:
   SESSION_SECRET: "super-secret-string1234"
@@ -20,3 +22,5 @@ ingress:
   enabled: true
   host: fortiflex-marketplace-api.fortinetcloudcse.com
   certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/194f3eec-f018-47aa-be72-fec0868d16f0
+  annotations:
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=300
