@@ -30,6 +30,37 @@ env:
 
 ## Development Workflows
 
+### Kubernetes Access & Authentication
+**CRITICAL**: Deployments are in the `default` namespace, NOT `vm-apps`.
+
+**AWS Authentication**:
+1. **Profile**: Use `our-eks` profile for cluster access
+2. **Re-authentication**: AWS SSO sessions expire after 8-12 hours
+   ```bash
+   # When you get "Unable to locate credentials" or "AccessDenied" errors
+   export AWS_PROFILE=our-eks
+   aws sso login
+   ```
+3. **Update kubeconfig**: Always refresh after re-authentication
+   ```bash
+   AWS_PROFILE=our-eks aws eks update-kubeconfig --name vending-machine-poc --region us-east-1
+   ```
+
+**Managing Deployments**:
+```bash
+# Restart a deployment (namespace: default, not vm-apps)
+AWS_PROFILE=our-eks kubectl rollout restart deployment vm-poc-backend-fortiflex-marketplace -n default
+
+# Check rollout status
+AWS_PROFILE=our-eks kubectl rollout status deployment vm-poc-backend-fortiflex-marketplace -n default
+
+# View pod logs
+AWS_PROFILE=our-eks kubectl logs -n default -l app=vm-poc-backend-fortiflex-marketplace --tail=50
+
+# Get pods
+AWS_PROFILE=our-eks kubectl get pods -n default
+```
+
 ### Full Stack Deployment (EKS)
 ```bash
 # Bootstrap cluster, controllers, and DynamoDB
@@ -153,16 +184,19 @@ python dynamodb/seed_products.py --table-name vm-poc-products-local --region us-
 
 ## Common Pitfalls
 
-1. **Missing `.cluster.env`**: If targets fail with undefined VPC/role variables, run `make get-cluster-info` or `make extract-iam-roles` to regenerate state file
-2. **Service name mismatch**: `values.yaml` `name` field MUST match ECR repo name (Terraform creates repos from this value)
-3. **IRSA requires OIDC**: Run `make iam-oidc` before provisioning DynamoDB or deploying services that need AWS API access
-4. **Helm install order**: Deploy controllers (`make controllers`) before deploying apps with Ingress resources
-5. **CloudFormation stack persistence**: `make down` attempts to delete `eks-addon-roles` stack, but manual cleanup may be needed if stack drift occurs
-6. **Service account annotations**: For DynamoDB access, `serviceAccount.create=true` AND `annotations."eks.amazonaws.com/role-arn"` must both be set (see `vm-poc-backend-fortiflex/values.yaml`)
-7. **Submodule not initialized**: If builds fail with missing source files, run `git submodule update --init --recursive`
-8. **Stale submodule reference**: After updating code in external repo, run `cd apps/<submodule> && git pull origin <branch>` in vending-machine-poc to pull latest changes
-9. **NEVER edit submodule code directly**: All code changes MUST be made in the original repo (e.g., `fortigate-marketplace`), committed, pushed, then pulled into `apps/<submodule>/`. Docker builds use the submodule directory directly, NOT symlinks.
-10. **Build args for multi-environment**: When integrating external frontends, pass build args (e.g., `VITE_BACKEND_HOST`) via `compose.yaml` `build.args` to inject environment-specific URLs at build time
+1. **Wrong namespace**: Deployments are in `default` namespace, NOT `vm-apps` (use `-n default` for kubectl commands)
+2. **AWS SSO expiration**: Credentials expire after 8-12 hours, causing "AccessDenied" or "Unable to locate credentials" errors - re-run `aws sso login` with `our-eks` profile
+3. **Stale kubeconfig**: After re-authenticating, always run `AWS_PROFILE=our-eks aws eks update-kubeconfig --name vending-machine-poc --region us-east-1`
+4. **Missing `.cluster.env`**: If targets fail with undefined VPC/role variables, run `make get-cluster-info` or `make extract-iam-roles` to regenerate state file
+5. **Service name mismatch**: `values.yaml` `name` field MUST match ECR repo name (Terraform creates repos from this value)
+6. **IRSA requires OIDC**: Run `make iam-oidc` before provisioning DynamoDB or deploying services that need AWS API access
+7. **Helm install order**: Deploy controllers (`make controllers`) before deploying apps with Ingress resources
+8. **CloudFormation stack persistence**: `make down` attempts to delete `eks-addon-roles` stack, but manual cleanup may be needed if stack drift occurs
+9. **Service account annotations**: For DynamoDB access, `serviceAccount.create=true` AND `annotations."eks.amazonaws.com/role-arn"` must both be set (see `vm-poc-backend-fortiflex/values.yaml`)
+10. **Submodule not initialized**: If builds fail with missing source files, run `git submodule update --init --recursive`
+11. **Stale submodule reference**: After updating code in external repo, run `cd apps/<submodule> && git pull origin <branch>` in vending-machine-poc to pull latest changes
+12. **NEVER edit submodule code directly**: All code changes MUST be made in the original repo (e.g., `fortigate-marketplace`), committed, pushed, then pulled into `apps/<submodule>/`. Docker builds use the submodule directory directly, NOT symlinks.
+13. **Build args for multi-environment**: When integrating external frontends, pass build args (e.g., `VITE_BACKEND_HOST`) via `compose.yaml` `build.args` to inject environment-specific URLs at build time
 
 ## Key Files Reference
 
@@ -178,6 +212,7 @@ python dynamodb/seed_products.py --table-name vm-poc-products-local --region us-
 Override via Makefile vars or `.cluster.env`:
 - **AWS_ACCT**: `228122752878`
 - **AWS_DEFAULT_REGION**: `us-east-1`
+- **AWS_PROFILE**: `our-eks` (required for kubectl/EKS access)
 - **cluster_name**: `vending-machine-poc`
-- **app_namespace**: `vm-apps`
+- **app_namespace**: `default` (NOT `vm-apps` - this is critical for kubectl commands)
 - **route53_domain**: `fortinetcloudcse.com`
