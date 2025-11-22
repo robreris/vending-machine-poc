@@ -226,6 +226,20 @@ The backend points at the local table through the `PRODUCTS_TABLE_NAME`, `AWS_RE
 
 Once your service behaves correctly in Compose, promote it into the shared infrastructure by adding `apps/<service-name>/values.yaml` (so Helm and the CI workflow discover it) and, when the application needs extra AWS dependencies, extending `apps/<service-name>/terraform/` with the required modules. After those files exist, the Terraform registry module and GitHub Actions workflow will provision the ECR repository and deploy the image into the EKS cluster.
 
+### Onboarding an external service (shared chart)
+
+Use this path when the service source lives in another repo but should be deployed by this infra repo with the shared Helm chart:
+
+1. Add an entry to `services.yaml` in this repo with the service name, image repo/tag, service port, ingress host, and any env/config. The shared chart expects the same fields you’d normally put in `apps/<svc>/values.yaml` (for example `image.repository`, `image.tag`, `service.port`, `ingress.host`, optional `ingress.certificateArn`).
+2. Commit/push the `services.yaml` change. The CI workflow runs Terraform, which creates the ECR repo (and IRSA if configured) for that service.
+3. In the external repo, build and push the image to the ECR repo created in step 2 (e.g., `docker build -t <ecr>/<svc>:<tag> .` then `docker push ...`). No Helm packaging is required because the shared chart lives here.
+4. Deploy with the shared chart using the values from `services.yaml`:
+   - CI path: enable the deploy job to loop over `services.yaml` and run `helm upgrade --install <svc> ./apps/charts/shared -f <values>`.
+   - Manual path: `helm upgrade --install <svc> ./apps/charts/shared -f <(yq ".services[] | select(.name=='<svc>').values" services.yaml) -n vm-apps --create-namespace`.
+5. ExternalDNS + ALB will reconcile the Route 53 record from `ingress.host` (ensure the host lives in the managed zone and the certificate ARN matches the hostname or wildcard).
+
+If a service truly needs its own chart, add optional `chart` and `version` fields to its `services.yaml` entry to override the shared chart and point at a published chart in OCI/Helm.
+
 ## Granting Teammates Cluster Access From Another AWS Account
 
 These files create an IAM role granting external users access to the EKS cluster:
