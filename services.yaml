@@ -1,0 +1,20 @@
+# Catalog of external services deployed by this infra repo.
+# Services use the shared chart in ./apps/charts/shared; provide their Helm values here.
+# Optional: if a service truly needs its own chart, add `chart` and `version` to override.
+
+services:
+  - name: vm-poc-sample-external-app
+    ecr_repo_name: vm-poc-sample-external-app       # optional, defaults to name
+    # irsa_role_name: vm-poc-sample-external-app-irsa # optional: set if the service needs AWS access
+    values:
+      name: vm-poc-sample-external-app
+      replicas: 1
+      ECRregistry: 228122752878.dkr.ecr.us-east-1.amazonaws.com  # update if using a different account/region
+      image:
+        tag: latest  # update to a specific tag/sha as needed
+      containerPort: 5000
+      servicePort: 5000
+      ingress:
+        enabled: true
+        host: sample-ext.fortinetcloudcse.com            # update to your Route 53-managed hostname
+        certificateArn: arn:aws:acm:us-east-1:228122752878:certificate/194f3eec-f018-47aa-be72-fec0868d16f0

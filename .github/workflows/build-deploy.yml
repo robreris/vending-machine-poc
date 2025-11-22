@@ -6,12 +6,14 @@ on:
       - "apps/**"
       - "arch/registry/**"
       - "modules/microservice-ecr/**"
+      - "services.yaml"
   pull_request:
     branches: [ "main" ]
     paths:
       - "apps/**"
       - "arch/registry/**"
       - "modules/microservice-ecr/**"
+      - "services.yaml"
   workflow_dispatch:
     inputs:
       ref:
@@ -32,9 +34,10 @@ jobs:
   reconcile-and-matrix:
     runs-on: ubuntu-latest
     outputs:
-      repos_json:     ${{ steps.out.outputs.repos_json }}       # { "vm-poc-frontend": "acct.dkr....../vm-poc-frontend", ... }
-      map_json:       ${{ steps.out.outputs.map_json }}         # { "vm-poc-frontend": "frontend", ... }
-      repos_list_json: ${{ steps.out.outputs.repos_list_json }}  # [ "vm-poc-frontend", ... ]
+      repos_json:      ${{ steps.out.outputs.repos_json }}        # { "vm-poc-frontend": "acct.dkr....../vm-poc-frontend", ... }
+      map_json:        ${{ steps.out.outputs.map_json }}          # { "vm-poc-frontend": "frontend", ... }
+      repos_list_json: ${{ steps.out.outputs.repos_list_json }}   # [ "vm-poc-frontend", ... ] (local only)
+      external_vals:   ${{ steps.out.outputs.external_vals }}     # values for external services (shared chart)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +48,19 @@ jobs:
         with:
           role-to-assume: ${{ secrets.CI_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+      - name: Install tooling (yq, jq)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+          curl -sL https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -o yq
+          sudo install yq /usr/local/bin/yq
+      - name: Build external tfvars from services.yaml
+        run: |
+          if [[ -f services.yaml ]]; then
+            yq -o=json '.services // []' services.yaml | jq '{ external_services: [ .[] | { name: .name, ecr_repo_name: (.ecr_repo_name // .name), irsa_role_name: (.irsa_role_name // null) } ] }' > arch/registry/external.auto.tfvars.json
+          else
+            echo '{"external_services":[]}' > arch/registry/external.auto.tfvars.json
+          fi
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -60,14 +76,38 @@ jobs:
         working-directory: arch/registry
         run: |
           python3 - <<'PY'
-          import json, subprocess, sys
+          import json, os, subprocess
+          from pathlib import Path
+
           def tf_out(name):
-              return json.loads(subprocess.check_output(["terraform","output","-json",name], text=True))
+              return json.loads(subprocess.check_output(["terraform", "output", "-json", name], text=True))
+
           repos = tf_out("repository_urls")   # map: repo_name -> repo_url
           mapping = tf_out("repo_to_service") # map: repo_name -> service_folder
-          sys.stdout.write(f"::set-output name=repos_json::{json.dumps(repos)}\n")
-          sys.stdout.write(f"::set-output name=map_json::{json.dumps(mapping)}\n")
-          sys.stdout.write(f"::set-output name=repos_list_json::{json.dumps(sorted(list(repos.keys())))}\n")
+
+          # Only build local services (apps/*); external entries are prefixed with "external:".
+          local_repos = sorted([r for r, svc in mapping.items() if not str(svc).startswith("external:")])
+
+          # Load external services values for deploy (shared chart)
+          external_entries = []
+          services_path = Path(os.environ.get("GITHUB_WORKSPACE", "..")).joinpath("services.yaml")
+          if services_path.exists():
+              try:
+                  raw = subprocess.check_output(["yq", "-o=json", ".services // []", str(services_path)], text=True)
+                  data = json.loads(raw)
+                  for svc in data or []:
+                      name = svc.get("name")
+                      vals = svc.get("values", {})
+                      if name:
+                          external_entries.append({"name": name, "values": vals})
+              except subprocess.CalledProcessError:
+                  pass
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"repos_json={json.dumps(repos)}\n")
+              f.write(f"map_json={json.dumps(mapping)}\n")
+              f.write(f"repos_list_json={json.dumps(local_repos)}\n")
+              f.write(f"external_vals={json.dumps(external_entries)}\n")
           PY
 
   build-push:
@@ -102,8 +142,9 @@ jobs:
           name = os.environ["MATRIX_REPO"]
           repo_url = repos[name]
           service  = mapping[name]
-          print(f"::set-output name=repo_url::{repo_url}")
-          print(f"::set-output name=service::{service}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as f:
+              f.write(f"repo_url={repo_url}\n")
+              f.write(f"service={service}\n")
           PY
         env:
           MATRIX_REPO: ${{ matrix.repo_name }}
