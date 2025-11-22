@@ -235,7 +235,13 @@ Use this path when the service source lives in another repo but should be deploy
 3. In the external repo, build and push the image to the ECR repo created in step 2 (e.g., `docker build -t <ecr>/<svc>:<tag> .` then `docker push ...`). No Helm packaging is required because the shared chart lives here.
 4. Deploy with the shared chart using the values from `services.yaml`:
    - CI path: enable the deploy job to loop over `services.yaml` and run `helm upgrade --install <svc> ./apps/charts/shared -f <values>`.
-   - Manual path: `helm upgrade --install <svc> ./apps/charts/shared -f <(yq ".services[] | select(.name=='<svc>').values" services.yaml) -n vm-apps --create-namespace`.
+   - Manual path: generate values on the fly from `services.yaml`, then deploy:
+     ```bash
+     svc=vm-poc-sample-external-app
+     vals=$(mktemp)
+     yq ".services[] | select(.name==\"$svc\").values" services.yaml > "$vals"
+     helm upgrade --install "$svc" ./apps/charts/shared -f "$vals" -n vm-apps --create-namespace
+     ```
 5. ExternalDNS + ALB will reconcile the Route 53 record from `ingress.host` (ensure the host lives in the managed zone and the certificate ARN matches the hostname or wildcard).
 
 If a service truly needs its own chart, add optional `chart` and `version` fields to its `services.yaml` entry to override the shared chart and point at a published chart in OCI/Helm.
