@@ -5,6 +5,9 @@
 * [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 * [eksctl](https://eksctl.io/installation/)
 * [helm](https://helm.sh/docs/intro/install/)
+* [kubectl](https://kubernetes.io/docs/tasks/tools/)
+* [terraform](https://developer.hashicorp.com/terraform/downloads)
+* [jq](https://jqlang.org/download/)
 
 ### Setup
 
@@ -22,7 +25,90 @@ cd vending-machine-poc
 git submodule update --init --recursive
 ```
 
-Update the configuration block at the top of the `Makefile` if you need to override the default AWS account, Route 53 domain, or key pair. Then bring the cluster online and install the controllers:
+Update the configuration block at the top of the `Makefile` if you need to override the default AWS account, Route 53 domain, or key pair.
+
+
+Before your first `make up`, create the Terraform backend state resources (one-time per account/region). This repo now provides a CloudFormation-backed target for that:
+
+```bash
+make provision-tf-backend
+```
+
+You can override names from the Makefile command line:
+
+```bash
+make provision-tf-backend \
+  TF_BACKEND_STACK=vm-poc-tf-backend \
+  TF_STATE_BUCKET=vm-poc-tfstate-bucket \
+  TF_STATE_TABLE=tf-state-vm-poc-table
+```
+
+If `TF_STATE_BUCKET` is not supplied, the Makefile generates a unique bucket name with a random suffix by default. `provision-tf-backend` writes `TF_BACKEND_STACK`, `TF_STATE_BUCKET`, and `TF_STATE_TABLE` into `.cluster.env` so later runs reuse the same values unless you override them.
+
+Equivalent direct AWS CLI commands:
+
+```bash
+export AWS_PROFILE=our-eks
+export AWS_REGION=us-east-1
+
+# Terraform state bucket
+aws s3api create-bucket \
+  --bucket vm-poc-tfstate-bucket \
+  --region "$AWS_REGION" \
+  --profile "$AWS_PROFILE"
+
+# Recommended safety settings for state
+aws s3api put-bucket-versioning \
+  --bucket vm-poc-tfstate-bucket \
+  --versioning-configuration Status=Enabled \
+  --profile "$AWS_PROFILE"
+
+# Terraform state lock table
+aws dynamodb create-table \
+  --table-name tf-state-vm-poc-table \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region "$AWS_REGION" \
+  --profile "$AWS_PROFILE"
+```
+
+If either resource already exists, AWS returns an "already exists" error; that is expected and safe to ignore.
+
+Preflight checks before `make up`:
+
+1. Confirm AWS credentials for the selected profile:
+   ```bash
+   aws sts get-caller-identity --profile our-eks
+   ```
+2. Confirm backend state resources are reachable:
+   ```bash
+   aws s3api head-bucket --bucket <tf-state-bucket> --profile our-eks
+   aws dynamodb describe-table --table-name <tf-state-lock-table> --region us-east-1 --profile our-eks
+   ```
+3. If needed, override Makefile defaults at invocation time:
+   ```bash
+   make up AWS_PROFILE=<profile> AWS_DEFAULT_REGION=<region> cluster_name=<cluster-name>
+   ```
+
+Then bring the cluster online and install the controllers:
+
+`make up` requires these variables to be passed on the command line:
+
+- `AWS_ACCT`
+- `key_name`
+- `route53_domain`
+- `Route53ZoneID`
+
+Example:
+
+```bash
+make up \
+  AWS_ACCT=123456789012 \
+  key_name=my-keypair \
+  route53_domain=example.com \
+  Route53ZoneID=Z1234567890ABC
+```
 
 ```
 make up
