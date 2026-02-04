@@ -16,11 +16,16 @@ FORTIFLEX_ROLE  := $(strip $(or $(ROLE),$(DYNAMODB_READER_ROLE_ARN)))
 AWS_ACCT           ?= 228122752878
 AWS_DEFAULT_REGION ?= us-east-1
 AWS_PROFILE        ?= our-eks
+ECR_REGISTRY       ?= $(AWS_ACCT).dkr.ecr.$(AWS_DEFAULT_REGION).amazonaws.com
 cluster_name       ?= vending-machine-poc
 app_namespace      ?= vm-apps
 elb_controller_namespace ?= aws-elb-controller-namespace
 key_name           ?= fgt-kp
 route53_domain     ?= fortinetcloudcse.com
+Route53ZoneID      ?= Z03896823RCWOLV8SE6UO
+SHARED_VALUES_FILE ?= apps/charts/shared/values.yaml
+GITHUB_WORKFLOW    ?= build-deploy.yml
+GITHUB_REF         ?= main
 
 export AWS_DEFAULT_REGION
 export AWS_PROFILE
@@ -97,6 +102,7 @@ iam-roles: ## Create IAM roles for addons via CloudFormation
 	    ParameterKey=ClusterName,ParameterValue=$(cluster_name) \
 	    ParameterKey=OIDCId,ParameterValue=$$OIDCId \
 	    ParameterKey=Namespace,ParameterValue=$(elb_controller_namespace) \
+            ParameterKey=Route53ZoneID,ParameterValue=$$Route53ZoneID \
 	  --capabilities CAPABILITY_NAMED_IAM \
 	  --region "$(AWS_DEFAULT_REGION)" || true
 	echo "⏳  Waiting for SA roles..."
@@ -223,14 +229,23 @@ destroy-dynamodb: ## Destroy shared products DynamoDB table and IAM role
 	fi
 
 # -------- Helm charts --------
+.PHONY: sync-shared-ecr-registry
+sync-shared-ecr-registry: ## Update shared chart ECRregistry in-place from Makefile config
+	@if grep -Eq '^[[:space:]]*ECRregistry:' "$(SHARED_VALUES_FILE)"; then \
+	  sed -i -E "s#^([[:space:]]*ECRregistry:[[:space:]]*).*\$$#\\1$(ECR_REGISTRY)#" "$(SHARED_VALUES_FILE)"; \
+	else \
+	  printf '\nECRregistry: %s\n' "$(ECR_REGISTRY)" >> "$(SHARED_VALUES_FILE)"; \
+	fi
+	@echo "Set ECRregistry in $(SHARED_VALUES_FILE) to $(ECR_REGISTRY)"
+
 .PHONY: deploy-poc-helm-charts
-deploy-app-helm-charts: 
+deploy-app-helm-charts: sync-shared-ecr-registry
 	helm upgrade --install frontend ./apps/charts/shared -f apps/vm-poc-frontend/values.yaml
 	helm upgrade --install backend-greeting ./apps/charts/shared -f apps/vm-poc-backend-greeting/values.yaml
 	helm upgrade --install backend-math ./apps/charts/shared -f apps/vm-poc-backend-math/values.yaml || true
 
 .PHONY: deploy-fortiflex-marketplace
-deploy-fortiflex-marketplace:
+deploy-fortiflex-marketplace: sync-shared-ecr-registry
 	@echo "Deploying FortiFlex Marketplace frontend and backend to default namespace..."
 	helm upgrade --install vm-poc-frontend-fortiflex-marketplace ./apps/charts/shared \
 	  -f apps/vm-poc-frontend-fortiflex-marketplace/values.yaml \
@@ -240,7 +255,7 @@ deploy-fortiflex-marketplace:
 	  -n default  
 
 .PHONY: deploy-fortiflex-poc
-deploy-fortiflex-poc:
+deploy-fortiflex-poc: sync-shared-ecr-registry
 	helm upgrade --install frontend-fortiflex ./apps/charts/shared -f apps/vm-poc-frontend-fortiflex/values.yaml -n default
 	if [ -z "$(FORTIFLEX_TABLE)" ] || [ -z "$(FORTIFLEX_ROLE)" ]; then \
 	  echo "Missing table/role. Provide via make variables (e.g. 'make deploy-fortiflex-poc TABLE=... ROLE=...') or run 'make provision-dynamodb' first."; \
@@ -256,3 +271,7 @@ deploy-fortiflex-poc:
 .PHONY: uninstall-app-helm-charts
 uninstall-app-helm-charts:
 	helm uninstall -n default $$(helm ls --short -n default)
+
+.PHONY: kickoff-build-deploy-workflow
+kickoff-build-deploy-workflow: sync-shared-ecr-registry
+	gh workflow run "$(GITHUB_WORKFLOW)" --ref "$(GITHUB_REF)" -f ref="$(GITHUB_REF)"
