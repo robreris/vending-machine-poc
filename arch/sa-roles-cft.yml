@@ -11,6 +11,9 @@ Parameters:
   Namespace:
     Type: String
     Description: ELB namespace
+  Route53ZoneID:
+    Type: String
+    Description: Route 53 Zone ID
 
 Resources:
 
@@ -252,8 +255,7 @@ Resources:
             Version: "2012-10-17"
             Statement:
             - Resource: 
-              - "arn:aws:route53:::hostedzone/Z02526451H3YIJY19QJCY"
-              - "arn:aws:route53:::hostedzone/Z03896823RCWOLV8SE6UO"
+              - "arn:aws:route53:::hostedzone/${Route53ZoneID}"
               Action:
               - "route53:ChangeResourceRecordSets"
               Effect: "Allow"
