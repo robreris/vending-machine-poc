@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Terraform backend resources (S3 state bucket and DynamoDB lock table)
+
+Parameters:
+  TfStateBucketName:
+    Type: String
+    Description: Globally unique S3 bucket name for Terraform state.
+  TfStateLockTableName:
+    Type: String
+    Description: DynamoDB table name for Terraform state locking.
+
+Resources:
+  TerraformStateBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref TfStateBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  TerraformStateLockTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TfStateLockTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: LockID
+          AttributeType: S
+      KeySchema:
+        - AttributeName: LockID
+          KeyType: HASH
+
+Outputs:
+  TerraformStateBucketName:
+    Description: S3 bucket used for Terraform state.
+    Value: !Ref TerraformStateBucket
+  TerraformStateLockTableName:
+    Description: DynamoDB table used for Terraform state locking.
+    Value: !Ref TerraformStateLockTable

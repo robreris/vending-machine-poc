@@ -4,11 +4,11 @@
     {
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::190655619732:user/robs_uacc"
+        "AWS": "arn:aws:iam::228122752878:user/robs_uacc"
       },
       "Action": "sts:AssumeRole",
       "Condition": {
-        "StringEquals": { "sts:ExternalId": "cdmj6@5s$ap21*wer" }
+        "StringEquals": { "sts:ExternalId": "abcd123" }
       }
     }
   ]
