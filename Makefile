@@ -232,7 +232,7 @@ destroy-dynamodb: ## Destroy shared products DynamoDB table and IAM role
 .PHONY: sync-shared-ecr-registry
 sync-shared-ecr-registry: ## Update shared chart ECRregistry in-place from Makefile config
 	@if grep -Eq '^[[:space:]]*ECRregistry:' "$(SHARED_VALUES_FILE)"; then \
-	  sed -i -E "s#^([[:space:]]*ECRregistry:[[:space:]]*).*\$$#\\1$(ECR_REGISTRY)#" "$(SHARED_VALUES_FILE)"; \
+	  sed -i -E "s#^([[:space:]]*ECRregistry:[[:space:]]*).*\$$#\1$(ECR_REGISTRY)#" "$(SHARED_VALUES_FILE)"; \
 	else \
 	  printf '\nECRregistry: %s\n' "$(ECR_REGISTRY)" >> "$(SHARED_VALUES_FILE)"; \
 	fi
