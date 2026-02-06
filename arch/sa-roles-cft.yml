@@ -255,7 +255,7 @@ Resources:
             Version: "2012-10-17"
             Statement:
             - Resource: 
-              - "arn:aws:route53:::hostedzone/${Route53ZoneID}"
+              - !Sub "arn:aws:route53:::hostedzone/${Route53ZoneID}"
               Action:
               - "route53:ChangeResourceRecordSets"
               Effect: "Allow"
