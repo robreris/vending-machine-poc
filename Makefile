@@ -18,6 +18,9 @@ AWS_DEFAULT_REGION ?= us-east-1
 AWS_PROFILE        ?= our-eks
 ECR_REGISTRY       ?= $(AWS_ACCT).dkr.ecr.$(AWS_DEFAULT_REGION).amazonaws.com
 cluster_name       ?= vending-machine-poc
+TF_BACKEND_STACK   ?= vm-poc-tf-backend
+TF_STATE_BUCKET    ?= vm-poc-tfstate-$(shell date +%s)-$(shell od -vAn -N3 -tx1 /dev/urandom | tr -d ' \n')
+TF_STATE_TABLE     ?= tf-state-vm-poc-table
 app_namespace      ?= vm-apps
 elb_controller_namespace ?= aws-elb-controller-namespace
 key_name           ?= fgt-kp
@@ -35,9 +38,25 @@ export AWS_PROFILE
 help: ## Show targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | sed 's/:.*##/: /' | sort
 
+# -------- Validation --------
+.PHONY: validate-up-vars
+validate-up-vars: ## Require selected variables to be passed on the command line for `make up`
+	@if [ "$(origin AWS_ACCT)" != "command line" ]; then \
+	  echo "ERROR: AWS_ACCT must be supplied on the make command line."; exit 1; \
+	fi
+	@if [ "$(origin key_name)" != "command line" ]; then \
+	  echo "ERROR: key_name must be supplied on the make command line."; exit 1; \
+	fi
+	@if [ "$(origin route53_domain)" != "command line" ]; then \
+	  echo "ERROR: route53_domain must be supplied on the make command line."; exit 1; \
+	fi
+	@if [ "$(origin Route53ZoneID)" != "command line" ]; then \
+	  echo "ERROR: Route53ZoneID must be supplied on the make command line."; exit 1; \
+	fi
+
 # -------- Orchestration --------
 .PHONY: up
-up: create-cluster iam-oidc iam-roles extract-iam-roles configure-sa install-lb-controller install-externaldns provision-dynamodb ## Full bring-up
+up: validate-up-vars create-cluster iam-oidc iam-roles extract-iam-roles configure-sa install-lb-controller install-externaldns provision-dynamodb ## Full bring-up
 
 .PHONY: controllers
 controllers: install-lb-controller install-externaldns ## Only install controllers
@@ -46,8 +65,37 @@ controllers: install-lb-controller install-externaldns ## Only install controlle
 down: ## Delete the cluster (eksctl)
 	$(MAKE) uninstall-app-helm-charts || true
 	$(MAKE) destroy-dynamodb || true
+	aws cloudformation delete-stack --stack-name vm-poc-tf-backend
 	aws cloudformation delete-stack --stack-name eks-addon-roles
+	$(MAKE) cleanup-elbv2-security-groups || true
 	eksctl delete cluster --name "$(cluster_name)" --region "$(AWS_DEFAULT_REGION)"
+	$(MAKE) cleanup-elbv2-security-groups || true
+
+.PHONY: cleanup-elbv2-security-groups
+cleanup-elbv2-security-groups: ## Best-effort cleanup for lingering ALB controller SGs tagged to this cluster
+	MAX_ATTEMPTS=20
+	SLEEP_SECONDS=15
+	for attempt in $$(seq 1 $$MAX_ATTEMPTS); do
+	  SG_IDS="$$(aws ec2 describe-security-groups \
+	    --filters "Name=tag:elbv2.k8s.aws/cluster,Values=$(cluster_name)" \
+	    --query 'SecurityGroups[].GroupId' \
+	    --output text 2>/dev/null || true)"
+	  if [[ -z "$$SG_IDS" || "$$SG_IDS" == "None" ]]; then
+	    echo "No lingering elbv2 SGs found for cluster $(cluster_name)."
+	    break
+	  fi
+	  echo "Attempt $$attempt/$$MAX_ATTEMPTS: deleting tagged SGs: $$SG_IDS"
+	  for sg in $$SG_IDS; do
+	    if aws ec2 delete-security-group --group-id "$$sg" >/dev/null 2>&1; then
+	      echo "Deleted $$sg"
+	    else
+	      echo "Could not delete $$sg yet (likely still attached); will retry."
+	    fi
+	  done
+	  if [[ $$attempt -lt $$MAX_ATTEMPTS ]]; then
+	    sleep $$SLEEP_SECONDS
+	  fi
+	done
 
 # -------- Cluster --------
 .PHONY: create-cluster
@@ -102,7 +150,7 @@ iam-roles: ## Create IAM roles for addons via CloudFormation
 	    ParameterKey=ClusterName,ParameterValue=$(cluster_name) \
 	    ParameterKey=OIDCId,ParameterValue=$$OIDCId \
 	    ParameterKey=Namespace,ParameterValue=$(elb_controller_namespace) \
-            ParameterKey=Route53ZoneID,ParameterValue=$$Route53ZoneID \
+            ParameterKey=Route53ZoneID,ParameterValue=$(Route53ZoneID) \
 	  --capabilities CAPABILITY_NAMED_IAM \
 	  --region "$(AWS_DEFAULT_REGION)" || true
 	echo "⏳  Waiting for SA roles..."
@@ -201,9 +249,40 @@ install-externaldns: ## Install ExternalDNS (Bitnami)
 	  --set sources='{ingress}' \
 	  --set extraArgs[0]=--aws-zone-type=public
 
+.PHONY: provision-tf-backend
+provision-tf-backend: ## Provision Terraform backend resources (S3 state bucket + DynamoDB lock table)
+	touch .cluster.env
+	sed -i '/^TF_BACKEND_STACK=/d' .cluster.env || true
+	sed -i '/^TF_STATE_BUCKET=/d' .cluster.env || true
+	sed -i '/^TF_STATE_TABLE=/d' .cluster.env || true
+	{ \
+	  echo "TF_BACKEND_STACK=$(TF_BACKEND_STACK)"; \
+	  echo "TF_STATE_BUCKET=$(TF_STATE_BUCKET)"; \
+	  echo "TF_STATE_TABLE=$(TF_STATE_TABLE)"; \
+	} >> .cluster.env
+	aws cloudformation deploy \
+	  --stack-name "$(TF_BACKEND_STACK)" \
+	  --template-file arch/tf-backend-cft.yml \
+	  --parameter-overrides \
+	    TfStateBucketName="$(TF_STATE_BUCKET)" \
+	    TfStateLockTableName="$(TF_STATE_TABLE)" \
+	  --region "$(AWS_DEFAULT_REGION)"
+
+.PHONY: destroy-tf-backend
+destroy-tf-backend: ## Delete Terraform backend resources stack (fails if state bucket is non-empty)
+	aws cloudformation delete-stack \
+	  --stack-name "$(TF_BACKEND_STACK)" \
+	  --region "$(AWS_DEFAULT_REGION)"
+	aws cloudformation wait stack-delete-complete \
+	  --stack-name "$(TF_BACKEND_STACK)" \
+	  --region "$(AWS_DEFAULT_REGION)"
+
 .PHONY: provision-dynamodb
-provision-dynamodb: ## Provision shared products DynamoDB table and IAM role
-	terraform -chdir=arch/dynamodb init
+provision-dynamodb: provision-tf-backend ## Provision shared products DynamoDB table and IAM role
+	terraform -chdir=arch/dynamodb init -reconfigure \
+	  -backend-config="bucket=$(TF_STATE_BUCKET)" \
+	  -backend-config="dynamodb_table=$(TF_STATE_TABLE)" \
+	  -backend-config="region=$(AWS_DEFAULT_REGION)"
 	terraform -chdir=arch/dynamodb apply -auto-approve -var "cluster_name=$(cluster_name)"
 	DYNAMODB_OUTPUTS="$$(terraform -chdir=arch/dynamodb output -json)"
 	PRODUCTS_TABLE_NAME="$$(echo "$$DYNAMODB_OUTPUTS" | jq -r '.products_table_name.value')"
@@ -224,7 +303,10 @@ destroy-dynamodb: ## Destroy shared products DynamoDB table and IAM role
 	@if [ ! -d arch/dynamodb ]; then \
 	  echo "No arch/dynamodb directory found; skipping"; \
 	else \
-	  terraform -chdir=arch/dynamodb init; \
+	  terraform -chdir=arch/dynamodb init -reconfigure \
+	    -backend-config="bucket=$(TF_STATE_BUCKET)" \
+	    -backend-config="dynamodb_table=$(TF_STATE_TABLE)" \
+	    -backend-config="region=$(AWS_DEFAULT_REGION)"; \
 	  terraform -chdir=arch/dynamodb destroy -auto-approve -var "cluster_name=$(cluster_name)"; \
 	fi
 
@@ -232,7 +314,7 @@ destroy-dynamodb: ## Destroy shared products DynamoDB table and IAM role
 .PHONY: sync-shared-ecr-registry
 sync-shared-ecr-registry: ## Update shared chart ECRregistry in-place from Makefile config
 	@if grep -Eq '^[[:space:]]*ECRregistry:' "$(SHARED_VALUES_FILE)"; then \
-	  sed -i -E 's#^([[:space:]]*ECRregistry:[[:space:]]*).*$#\1$(ECR_REGISTRY)#' "$(SHARED_VALUES_FILE)"; \
+	  sed -i -E 's#^([[:space:]]*ECRregistry:[[:space:]]*).*$$#\1$(ECR_REGISTRY)#' "$(SHARED_VALUES_FILE)"; \
 	else \
 	  printf '\nECRregistry: %s\n' "$(ECR_REGISTRY)" >> "$(SHARED_VALUES_FILE)"; \
 	fi
