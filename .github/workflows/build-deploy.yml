@@ -39,12 +39,12 @@ jobs:
       repos_list_json: ${{ steps.out.outputs.repos_list_json }}   # [ "vm-poc-frontend", ... ] (local only)
       external_vals:   ${{ steps.out.outputs.external_vals }}     # values for external services (shared chart)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           submodules: recursive
           token: ${{ secrets.SUBMODULE_PAT }}
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.CI_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -62,7 +62,7 @@ jobs:
             echo '{"external_services":[]}' > arch/registry/external.auto.tfvars.json
           fi
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: 1.6.6
       - name: Terraform Apply (fleet)
@@ -123,11 +123,11 @@ jobs:
       REPOS_JSON: ${{ needs.reconcile-and-matrix.outputs.repos_json }}
       MAP_JSON:   ${{ needs.reconcile-and-matrix.outputs.map_json }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           token: ${{ secrets.SUBMODULE_PAT }}
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.CI_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -193,7 +193,7 @@ jobs:
 #      SHARED_CHART: ${{ env.SHARED_CHART }}
 #      DEFAULT_NAMESPACE: ${{ env.DEFAULT_NAMESPACE }}
 #    steps:
-#      - uses: actions/checkout@v4
+#      - uses: actions/checkout@v6
 #
 #      - name: Install tools
 #        run: |
