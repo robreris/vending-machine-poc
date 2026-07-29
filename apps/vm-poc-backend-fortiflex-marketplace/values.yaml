@@ -3,7 +3,8 @@ name: vm-poc-backend-fortiflex-marketplace
 serviceAccount:
   create: true
   name: vm-poc-backend-fortiflex-marketplace
-  annotations: {}
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::228122752878:role/fortiflex-marketplace-bedrock
 image:
   tag: latest
 replicas: 1
