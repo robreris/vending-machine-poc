@@ -15,9 +15,14 @@ ingressPort: 8000
 env:
   SESSION_SECRET: "super-secret-string1234"
   DEBUG: "false"
-  # Add other backend env vars as needed
-  # PRODUCTS_TABLE_NAME: ""
-  # AWS_REGION: us-east-1
+  AWS_REGION: "us-east-1"
+  MSSP_SECRET_NAME: "fortiflex-marketplace/mssp-master"
+  DB_PATH: "/data/marketplace.db"
+
+persistence:
+  mountPath: /data
+  storageClass: gp2
+  size: 2Gi
 
 ingress:
   enabled: true

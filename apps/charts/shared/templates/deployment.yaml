@@ -34,3 +34,14 @@ spec:
               value: {{ $value | quote }}
             {{- end }}
           {{- end }}
+          {{- if .Values.persistence }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+          {{- end }}
+      {{- if .Values.persistence }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.name }}-data
+      {{- end }}
