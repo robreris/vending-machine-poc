@@ -17,7 +17,12 @@ env:
   DEBUG: "false"
   AWS_REGION: "us-east-1"
   MSSP_SECRET_NAME: "fortiflex-marketplace/mssp-master"
-  DB_PATH: "/tmp/marketplace.db"
+  DB_PATH: "/data/marketplace.db"
+
+persistence:
+  mountPath: /data
+  storageClass: gp2
+  size: 1Gi
 
 ingress:
   enabled: true
