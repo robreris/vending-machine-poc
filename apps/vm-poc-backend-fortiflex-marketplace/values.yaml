@@ -21,7 +21,7 @@ env:
 
 persistence:
   mountPath: /data
-  storageClass: gp2
+  storageClass: gp2-csi
   size: 1Gi
 
 ingress:
