@@ -18,6 +18,10 @@ env:
   AWS_REGION: "us-east-1"
   MSSP_SECRET_NAME: "fortiflex-marketplace/mssp-master"
   DB_PATH: "/data/marketplace.db"
+  FORTIAIGATE_BASE_URL: "https://fortiaigate.fortinetcloudcse.com/v1/responses"
+  FORTIAIGATE_MODEL: "gpt-4o-mini"
+
+envFromSecret: fortiflex-marketplace-fortiaigate
 
 persistence:
   mountPath: /data
