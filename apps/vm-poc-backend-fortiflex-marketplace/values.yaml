@@ -8,6 +8,15 @@ serviceAccount:
 image:
   tag: latest
 replicas: 1
+
+# Backend Dockerfile runs as uid/gid 1000 (non-root). The /data PVC below was
+# created under the previous root-running container - fsGroup makes the
+# volume group-writable to 1000 on mount so the SQLite DB stays accessible
+# instead of failing with Permission Denied.
+podSecurityContext:
+  runAsNonRoot: true
+  fsGroup: 1000
+
 containerPort: 8000
 servicePort: 8000
 ingressPort: 8000
