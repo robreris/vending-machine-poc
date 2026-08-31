@@ -8,7 +8,7 @@
       },
       "Action": "sts:AssumeRole",
       "Condition": {
-        "StringEquals": { "sts:ExternalId": "abcd123" }
+        "StringEquals": { "sts:ExternalId": "CHANGE_ME_GENERATE_RANDOM_EXTERNAL_ID" }
       }
     }
   ]

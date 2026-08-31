@@ -3,7 +3,11 @@ image:
   tag: latest
 replicas: 1
 servicePort: 80
-containerPort: 80
+containerPort: 8080
+
+healthCheck:
+  enabled: true
+  path: /
 
 env:
   FORTIFLEX_BACKEND_URL: "http://vm-poc-backend-fortiflex:5000"

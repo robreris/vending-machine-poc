@@ -5,3 +5,33 @@ serviceAccount:
   create: false
   name: ""
   annotations: {}
+
+# Pod-level security context, applied to every app via the shared chart.
+# Override per-app (e.g. set runAsNonRoot: false) only for an image that
+# is not yet built to run non-root - see each app's Dockerfile.
+podSecurityContext:
+  runAsNonRoot: true
+
+# Container-level security context, applied to every app via the shared chart.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+
+# Default compute footprint; override per-app in its own values.yaml if a
+# service needs more (or less).
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Opt-in HTTP liveness/readiness probes. Disabled by default because not
+# every app exposes the same health path - set healthCheck.enabled: true
+# and healthCheck.path in an app's own values.yaml once its health
+# endpoint is confirmed (repo convention is /healthz or /api/whoami).
+healthCheck:
+  enabled: false
+  path: /healthz
+  initialDelaySeconds: 5
+  periodSeconds: 10

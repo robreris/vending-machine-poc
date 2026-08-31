@@ -5,6 +5,10 @@ replicas: 1
 servicePort: 80
 containerPort: 5000
 
+healthCheck:
+  enabled: true
+  path: /
+
 env:
   GREETING_BACKEND_URL: "http://vm-poc-backend-greeting:5000/greet"
   MATH_BACKEND_URL: "http://vm-poc-backend-math:5000/sum"

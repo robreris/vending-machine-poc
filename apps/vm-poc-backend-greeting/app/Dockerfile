@@ -11,6 +11,10 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy the backend app
 COPY greeting_backend_app.py .
 
+RUN useradd --create-home --uid 1000 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # Expose the FastAPI port
 EXPOSE 5000
 

@@ -12,6 +12,10 @@ RUN pip install --no-cache-dir --upgrade pip \
 COPY app.py app.py
 COPY templates/ templates/
 
+RUN useradd --create-home --uid 1000 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 # Expose the port FastAPI will run on
 EXPOSE 5000
 

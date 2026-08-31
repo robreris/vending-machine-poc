@@ -10,4 +10,8 @@ COPY app app
 ENV PORT=5000
 ENV SERVICE_NAME=vm-poc-backend-echo
 
+RUN useradd --create-home --uid 1000 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]
