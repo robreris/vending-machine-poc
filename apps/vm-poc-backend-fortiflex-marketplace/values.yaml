@@ -13,7 +13,6 @@ servicePort: 8000
 ingressPort: 8000
 
 env:
-  SESSION_SECRET: "super-secret-string1234"
   DEBUG: "false"
   AWS_REGION: "us-east-1"
   MSSP_SECRET_NAME: "fortiflex-marketplace/mssp-master"
