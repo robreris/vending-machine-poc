@@ -3,7 +3,7 @@ image:
   tag: latest
 replicas: 1
 servicePort: 80
-containerPort: 80
+containerPort: 8080
 
 # NOTE: VITE_API_BASE_URL is a runtime env var (doesn't affect the built app)
 # The frontend is built with VITE_BACKEND_HOST passed as a build arg in CI/CD

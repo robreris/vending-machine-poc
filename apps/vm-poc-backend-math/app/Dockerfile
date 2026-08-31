@@ -9,5 +9,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 
+RUN useradd --create-home --uid 1000 --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 5000
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
