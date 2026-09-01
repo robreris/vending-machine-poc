@@ -2,6 +2,14 @@ name: vm-poc-frontend-fortiflex
 image:
   tag: latest
 replicas: 1
+
+# nginx:alpine's built-in nginx user is uid/gid 101, not the chart default
+# of 1000 - override so the numeric runAsUser actually matches this image.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 101
+  runAsGroup: 101
+
 servicePort: 80
 containerPort: 8080
 

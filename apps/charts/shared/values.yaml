@@ -7,10 +7,18 @@ serviceAccount:
   annotations: {}
 
 # Pod-level security context, applied to every app via the shared chart.
-# Override per-app (e.g. set runAsNonRoot: false) only for an image that
-# is not yet built to run non-root - see each app's Dockerfile.
+# runAsUser/runAsGroup must be numeric, not the image's USER name (e.g.
+# "appuser"/"node") - without it, the kubelet can't verify a named user
+# resolves to non-root without running the container, and refuses to start
+# it at all ("cannot verify user is non-root"). 1000 matches every app's
+# Dockerfile except vm-poc-frontend-fortiflex (nginx, uid 101 - overridden
+# in its own values.yaml). Override per-app (e.g. set runAsNonRoot: false)
+# only for an image that is not yet built to run non-root - see each app's
+# Dockerfile.
 podSecurityContext:
   runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
 
 # Container-level security context, applied to every app via the shared chart.
 containerSecurityContext:
