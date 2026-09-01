@@ -1,5 +1,5 @@
 {{- if .Values.networkPolicy.enabled }}
-{{- $needsVpcIngress := or .Values.ingress.enabled .Values.healthCheck.enabled }}
+{{- $needsVpcIngress := or (and .Values.ingress .Values.ingress.enabled) .Values.healthCheck.enabled }}
 {{- $froms := list }}
 {{- if $needsVpcIngress }}
 {{- $froms = append $froms (dict "ipBlock" (dict "cidr" .Values.networkPolicy.vpcCIDR)) }}
