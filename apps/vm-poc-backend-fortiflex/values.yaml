@@ -14,5 +14,9 @@ env:
   PRODUCTS_TABLE_NAME: ""
   AWS_REGION: us-east-1
 
+networkPolicy:
+  allowFrom:
+    - vm-poc-frontend-fortiflex
+
 ingress:
   enabled: false

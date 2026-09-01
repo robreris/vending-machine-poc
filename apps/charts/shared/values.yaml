@@ -43,3 +43,29 @@ healthCheck:
   path: /healthz
   initialDelaySeconds: 5
   periodSeconds: 10
+
+# Baseline NetworkPolicy, applied to every app via the shared chart, to contain lateral
+# movement in the shared `default` namespace (every pod there can otherwise reach every
+# other pod). Default-deny ingress except two allowed sources:
+#
+#   1. vpcCIDR - the ALB (target-type: ip) sends traffic straight to the pod IP from its own
+#      ENIs, and kubelet sends liveness/readiness probes from the node's IP - neither is a
+#      cluster pod, so neither can be expressed as a podSelector/namespaceSelector on the
+#      aws-load-balancer-controller. Both source IPs fall inside the cluster VPC CIDR (see
+#      arch/event-poc-cluster.yaml vpc.cidr), so this is expressed as an ipBlock instead, and
+#      only added for an app when it actually needs it (ingress.enabled or healthCheck.enabled).
+#   2. allowFrom - same-namespace peers (by `app` label value) that call this service
+#      directly pod-to-pod, e.g. vm-poc-frontend -> vm-poc-backend-greeting. Populate per-app
+#      in that app's own values.yaml; empty here.
+#
+# Egress is left unrestricted (egressEnabled: false) - restricting it would mean enumerating
+# every external API each app calls (FortiFlex, FortiAIGate, DynamoDB, Secrets Manager, Azure
+# AD SAML, ...), which is a bigger, separate change with more risk of breaking something than
+# this baseline is worth. Leaving egress open also means this policy can't accidentally block
+# DNS (kube-dns/coredns) - egress is simply not restricted, so no DNS carve-out is needed.
+# Opt out per-app with networkPolicy.enabled: false if a service genuinely needs it.
+networkPolicy:
+  enabled: true
+  vpcCIDR: "10.0.0.0/16"
+  allowFrom: []
+  egressEnabled: false

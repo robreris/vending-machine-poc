@@ -9,5 +9,9 @@ healthCheck:
   enabled: true
   path: /healthz
 
+networkPolicy:
+  allowFrom:
+    - vm-poc-frontend
+
 ingress:
   enabled: false

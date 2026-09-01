@@ -340,6 +340,12 @@ These files create an IAM role granting external users access to the EKS cluster
 | ----------------------------------------- | ------------------------------------------------------------------------- |
 | ```arch/iam/ca-tr-pol.json```             | Allows specified external IAM principals to assume our access role.       |
 | ```arch/iam/eks-describe-inline.json```   | AWS EKS permissions policy                                                |
+| ```arch/vmpoc-helm-deployer-rbac.yaml```  | Namespace-scoped Role/RoleBinding the access entry maps into (see below). |
+
+**Note on this section:** none of the commands below are Terraform/CloudFormation-managed in
+this repo - this README is the only record of how `VMPOCAccessRole` and its cluster access
+are actually provisioned. Run them by hand, in order, when onboarding or re-scoping a
+teammate.
 
 ### One-Time: Create the Access Role (per external principal)
 
@@ -361,22 +367,40 @@ These files create an IAM role granting external users access to the EKS cluster
 
 ### Per-Cluster: Grant Access to the Role
 
-Run once per cluster lifecycle:
+Run once per cluster lifecycle. This cluster uses EKS Access Entries (not the legacy
+`aws-auth` ConfigMap) - `aws eks create-access-entry` maps the IAM role to a Kubernetes
+identity.
 
 ```bash
 aws eks create-access-entry \
   --cluster-name vending-machine-poc \
   --principal-arn arn:aws:iam::<OUR_ACCOUNT_ID>:role/VMPOCAccessRole \
-  --type STANDARD
+  --type STANDARD \
+  --kubernetes-groups vmpoc-helm-deployers
 ```
 
-Grant namespace-level permissions:
+**Do not** run `aws eks associate-access-policy` with the AWS-managed
+`AmazonEKSEditPolicy` here. That policy is a fixed bundle you cannot edit - it's roughly
+equivalent to the Kubernetes built-in `edit` ClusterRole, which grants get/list/watch on
+every Secret in the namespace *and* exec/attach/port-forward into every Pod (letting the
+holder dump a pod's env vars, mounted Secret volumes, and its IRSA-bound AWS credentials).
+Instead, apply the namespace-scoped Role/RoleBinding this repo defines for exactly what
+`helm upgrade --install ./apps/charts/shared ...` needs to touch, and bind it to the
+`vmpoc-helm-deployers` group from the access entry above:
+
 ```bash
-aws eks associate-access-policy \
-  --cluster-name vending-machine-poc \
-  --principal-arn arn:aws:iam::<OUR_ACCOUNT_ID>:role/VMPOCAccessRole \
-  --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSEditPolicy \
-  --access-scope type=namespace,namespaces=<team-namespace>
+kubectl apply -f arch/vmpoc-helm-deployer-rbac.yaml
+```
+
+See the comments in `arch/vmpoc-helm-deployer-rbac.yaml` for exactly what's granted and the
+one documented tradeoff: Helm's default Secret-backed release storage means this role still
+needs (and gets) read/write on `secrets` in the namespace, so it can still read application
+Secrets there, not just Helm's own release state - native K8s RBAC can't scope by name
+pattern or label the way NetworkPolicy can scope by pod selector. Verify:
+
+```bash
+kubectl auth can-i get secrets -n <team-namespace> --as-group vmpoc-helm-deployers   # yes (documented tradeoff)
+kubectl auth can-i create pods/exec -n <team-namespace> --as-group vmpoc-helm-deployers  # no
 ```
 
 ### Contributor Setup

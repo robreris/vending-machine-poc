@@ -1,0 +1,82 @@
+# Namespace-scoped RBAC for external teammates accessing this cluster via VMPOCAccessRole
+# (see README.md "Granting Teammates Cluster Access From Another AWS Account").
+#
+# Replaces binding the AWS-managed EKS access policy `AmazonEKSEditPolicy` to the role.
+# That policy is a fixed bundle (you cannot edit which permissions it grants) roughly
+# equivalent to the Kubernetes built-in `edit` ClusterRole, which - like `edit` - grants
+# get/list/watch on Secrets *and* exec/attach/port-forward into any Pod in the namespace.
+# The latter is arguably worse than the Secrets read alone: exec into any pod lets you dump
+# its env vars, mounted Secret volumes, and its IRSA-bound temporary AWS credentials, then
+# pivot into whatever AWS access that pod's own IAM role permits (e.g. the
+# fortiflex-marketplace-bedrock role bound to vm-poc-backend-fortiflex-marketplace).
+#
+# This Role instead grants exactly what `helm upgrade --install` against
+# apps/charts/shared needs to touch (Deployments, Services, Ingresses, ServiceAccounts,
+# PersistentVolumeClaims, NetworkPolicies - matches every `kind:` currently under
+# apps/charts/shared/templates/ - plus ConfigMaps as reasonable near-term headroom), read-only
+# visibility into Pods/ReplicaSets (for `helm upgrade --wait` and routine troubleshooting, no
+# exec/attach/port-forward), and Secrets access for Helm's own release bookkeeping.
+#
+# Secrets tradeoff (documented, not fully resolved here): Helm 3's default storage driver
+# keeps each release's state as a Secret (sh.helm.release.v1.<release>.v<revision>, type
+# helm.sh/release.v1) in the target namespace, with no label/name pattern that native K8s
+# RBAC can scope to (RBAC `resourceNames` only supports an exact static list, not a prefix
+# match, and there is no label-selector concept for arbitrary resource verbs the way
+# NetworkPolicy has one for pods). So `secrets` get/list/watch/create/update/patch/delete
+# below is real access, and it still lets the holder read this namespace's application
+# Secrets (e.g. the fortiflex-marketplace-fortiaigate Secret backing FORTIAIGATE_API_KEY),
+# not just Helm's own. Full exclusion would require either:
+#   (a) switching Helm's storage driver to ConfigMaps (`HELM_DRIVER=configmap` for every
+#       `helm upgrade`/`helm uninstall` invocation under this role) so `secrets` can be
+#       dropped from this Role entirely - a real option, but it's an operational change (it
+#       orphans `helm history`/rollback for every release's *existing* Secret-backed state
+#       until migrated) that's out of scope for a pure RBAC-scoping pass; or
+#   (b) an admission-time policy engine (OPA Gatekeeper / Kyverno / a K8s 1.30+
+#       ValidatingAdmissionPolicy) enforcing "only secrets named sh.helm.release.v1.*" - none
+#       of which this repo currently runs.
+# Residual risk accepted for now: an external VMPOCAccessRole principal can still read every
+# Secret in the granted namespace. This is a smaller surface than AmazonEKSEditPolicy (no
+# pod exec/attach, no access outside the granted namespace) but not zero. Revisit if (a)
+# becomes worth the migration, or if this namespace starts holding materially more sensitive
+# Secrets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: vmpoc-helm-deployer
+  namespace: default
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services", "serviceaccounts", "persistentvolumeclaims", "configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vmpoc-helm-deployer-binding
+  namespace: default
+subjects:
+  - kind: Group
+    name: vmpoc-helm-deployers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: vmpoc-helm-deployer
+  apiGroup: rbac.authorization.k8s.io

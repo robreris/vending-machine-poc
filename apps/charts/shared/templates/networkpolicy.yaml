@@ -1,0 +1,32 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $needsVpcIngress := or .Values.ingress.enabled .Values.healthCheck.enabled }}
+{{- $froms := list }}
+{{- if $needsVpcIngress }}
+{{- $froms = append $froms (dict "ipBlock" (dict "cidr" .Values.networkPolicy.vpcCIDR)) }}
+{{- end }}
+{{- range .Values.networkPolicy.allowFrom }}
+{{- $froms = append $froms (dict "podSelector" (dict "matchLabels" (dict "app" .))) }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Values.name }}-netpol
+spec:
+  podSelector:
+    matchLabels:
+      app: {{ .Values.name }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.networkPolicy.egressEnabled }}
+    - Egress
+    {{- end }}
+  ingress:
+    - from:
+        {{- toYaml $froms | nindent 8 }}
+      ports:
+        - port: {{ .Values.containerPort }}
+  {{- if .Values.networkPolicy.egressEnabled }}
+  egress:
+    - {}
+  {{- end }}
+{{- end }}

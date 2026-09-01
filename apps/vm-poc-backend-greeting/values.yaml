@@ -5,5 +5,9 @@ replicas: 1
 containerPort: 5000
 servicePort: 5000
 
+networkPolicy:
+  allowFrom:
+    - vm-poc-frontend
+
 ingress:
   enabled: false
