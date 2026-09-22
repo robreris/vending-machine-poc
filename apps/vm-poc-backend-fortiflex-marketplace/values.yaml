@@ -9,6 +9,17 @@ image:
   tag: latest
 replicas: 1
 
+# Default 500m/512Mi (shared chart) OOMKilled twice on 2026-09-22 while
+# processing a large EA Excel upload. Raised to give ea_conversions.py
+# headroom for large-file pandas processing.
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
 # Backend Dockerfile runs as uid/gid 1000 (non-root). The /data PVC below was
 # created under the previous root-running container - fsGroup makes the
 # volume group-writable to 1000 on mount so the SQLite DB stays accessible
