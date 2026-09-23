@@ -45,6 +45,14 @@ env:
   AWS_REGION: "us-east-1"
   MSSP_SECRET_NAME: "fortiflex-marketplace/mssp-master"
   DB_PATH: "/data/marketplace.db"
+  # EA session artifacts + small app state on the PVC so restarts don't wipe
+  # in-progress sessions. The app sweeps sessions idle > TTL and refuses new
+  # uploads below EA_MIN_FREE_MB free, so they can't fill the volume the
+  # SQLite user DB lives on.
+  EA_SESSION_DIR: "/data/ea-sessions"
+  APP_PERSIST_DIR: "/data/app"
+  EA_SESSION_TTL_HOURS: "72"
+  EA_MIN_FREE_MB: "300"
   FORTIAIGATE_BASE_URL: "https://fortiaigate.fortinetcloudcse.com/v1/responses"
   FORTIAIGATE_MODEL: "gpt-4o-mini"
 
@@ -53,7 +61,18 @@ envFromSecret: fortiflex-marketplace-fortiaigate
 persistence:
   mountPath: /data
   storageClass: gp2-csi
-  size: 1Gi
+  # 1Gi -> 5Gi (2026-09-23) for persisted EA sessions (~15 MB per large EA).
+  size: 5Gi
+
+# /healthz answers from the event loop; heavy EA work runs in threads. Generous
+# timeout/threshold so a long upload can't get the pod killed.
+healthCheck:
+  enabled: true
+  path: /healthz
+  initialDelaySeconds: 10
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 6
 
 ingress:
   enabled: true

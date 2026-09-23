@@ -44,12 +44,24 @@ spec:
               port: {{ .Values.containerPort }}
             initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
             periodSeconds: {{ .Values.healthCheck.periodSeconds }}
+            {{- with .Values.healthCheck.timeoutSeconds }}
+            timeoutSeconds: {{ . }}
+            {{- end }}
+            {{- with .Values.healthCheck.failureThreshold }}
+            failureThreshold: {{ . }}
+            {{- end }}
           readinessProbe:
             httpGet:
               path: {{ .Values.healthCheck.path }}
               port: {{ .Values.containerPort }}
             initialDelaySeconds: {{ .Values.healthCheck.initialDelaySeconds }}
             periodSeconds: {{ .Values.healthCheck.periodSeconds }}
+            {{- with .Values.healthCheck.timeoutSeconds }}
+            timeoutSeconds: {{ . }}
+            {{- end }}
+            {{- with .Values.healthCheck.failureThreshold }}
+            failureThreshold: {{ . }}
+            {{- end }}
           {{- end }}
           {{- if .Values.command }}
           command:
