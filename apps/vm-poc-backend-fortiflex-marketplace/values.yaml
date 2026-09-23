@@ -9,6 +9,14 @@ image:
   tag: latest
 replicas: 1
 
+# /data is a ReadWriteOnce EBS volume holding the SQLite user DB. Under the
+# default RollingUpdate the new pod starts while the old one still holds the
+# volume; if it schedules to a different node it can't attach and the rollout
+# stalls (Multi-Attach error). Recreate stops the old pod first - costs a few
+# seconds of downtime per restart.
+strategy:
+  type: Recreate
+
 # Default 500m/512Mi (shared chart) OOMKilled twice on 2026-09-22 while
 # processing a large EA Excel upload. Raised to give ea_conversions.py
 # headroom for large-file pandas processing.
