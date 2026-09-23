@@ -32,3 +32,22 @@ managedNodeGroups:
 cloudWatch:
   clusterLogging:
     enableTypes: ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+
+# Container logs -> CloudWatch (added 2026-09-23). Without this, pod logs only
+# lived on the pod and every deploy/restart destroyed them. Fluent Bit ships
+# every container's stdout to /aws/containerinsights/vending-machine-poc/application
+# (30-day retention, set on the log groups). Live cluster: IRSA role
+# vmpoc-cloudwatch-observability (CloudWatchAgentServerPolicy, trust scoped to
+# SA amazon-cloudwatch:cloudwatch-agent); on a rebuild eksctl creates the
+# equivalent role from attachPolicyARNs. Enhanced Container Insights is off
+# (it bills per observation); basic metrics + logs are enough here.
+iam:
+  withOIDC: true
+
+addons:
+  - name: amazon-cloudwatch-observability
+    version: v6.7.0-eksbuild.1
+    attachPolicyARNs:
+      - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+    configurationValues: |-
+      {"containerLogs":{"enabled":true},"agent":{"config":{"logs":{"metrics_collected":{"kubernetes":{"enhanced_container_insights":false}}}}}}
