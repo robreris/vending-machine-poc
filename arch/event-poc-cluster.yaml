@@ -4,7 +4,7 @@ kind: ClusterConfig
 metadata:
   name: vending-machine-poc
   region: us-east-1
-  version: "1.34"  # Supported EKS control plane at the time of writing
+  version: "1.36"  # Upgraded 1.31 -> 1.36 on 2026-09-23 (docs/plans/0001_*); standard support to 2027-08-02
 
 vpc:
   cidr: 10.0.0.0/16
@@ -14,7 +14,12 @@ availabilityZones:
 - us-east-1b
 
 managedNodeGroups:
-  - name: vm-group
+  # Single-AZ on purpose: the backend's RWO EBS volume lives in us-east-1b, so a
+  # node in 1a can never mount it (backend stuck Pending). Keep every nodegroup
+  # that runs the backend in 1b. On a rebuild, eksctl picks the 1b private subnet.
+  - name: vm-group-1b
+    amiFamily: AmazonLinux2023
+    availabilityZones: ["us-east-1b"]
     instanceType: t3.large
     desiredCapacity: 1
     minSize: 1

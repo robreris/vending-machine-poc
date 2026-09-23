@@ -23,6 +23,9 @@ TF_STATE_BUCKET    ?= vm-poc-tfstate-$(shell date +%s)-$(shell od -vAn -N3 -tx1 
 TF_STATE_TABLE     ?= tf-state-vm-poc-table
 app_namespace      ?= vm-apps
 elb_controller_namespace ?= aws-elb-controller-namespace
+# Pinned so a rebuild reproduces the live cluster (EKS 1.36 upgrade, 2026-09-23). LBC 1.17.x = controller v2.17 (v3 needs its CRDs applied first).
+lbc_chart_version  ?= 1.17.1
+externaldns_chart_version ?= 1.22.0
 key_name           ?= fgt-kp
 route53_domain     ?= fortinetcloudcse.com
 Route53ZoneID      ?= Z03896823RCWOLV8SE6UO
@@ -208,6 +211,7 @@ install-lb-controller: ## Install/upgrade AWS LB Controller (with CRD wait + ret
 	attempt=1
 	while :; do
 	  if helm upgrade --install aws-load-balancer-controller eks/aws-load-balancer-controller \
+	      --version $(lbc_chart_version) \
 	      -n "$(elb_controller_namespace)" \
 	      --set clusterName="$(cluster_name)" \
 	      --set serviceAccount.create=false \
@@ -237,6 +241,7 @@ install-externaldns: ## Install ExternalDNS (Bitnami)
 	helm repo add external-dns https://kubernetes-sigs.github.io/external-dns/ || true
 	helm repo update
 	helm upgrade --install external-dns external-dns/external-dns \
+	  --version $(externaldns_chart_version) \
 	  --namespace kube-system \
 	  --set provider.name=aws \
 	  --set policy=upsert-only \
@@ -244,8 +249,6 @@ install-externaldns: ## Install ExternalDNS (Bitnami)
 	  --set txtOwnerId=my-eks-cluster \
 	  --set serviceAccount.create=false \
 	  --set serviceAccount.name=externaldns-route53-sa \
-	  --set image.repository=registry.k8s.io/external-dns/external-dns \
-	  --set image.tag=v0.17.0 \
 	  --set sources='{ingress}' \
 	  --set extraArgs[0]=--aws-zone-type=public
 
