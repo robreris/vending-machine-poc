@@ -2,7 +2,7 @@
 Date: 2026-09-23
 Owner: Jeff Kopko
 Slug: eks-upgrade-1.36
-Status: Proposed
+Status: Approved
 Supersedes: none
 Superseded-By: none
 Plan File: docs/plans/0001_2026-09-23_Jeff Kopko_eks-upgrade-1.36.md
@@ -62,6 +62,7 @@ For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
 
 ## Plan Changes
 - 2026-09-23: fixed Phase 0 header (0.2 restarts the app) and garbled kube-proxy note.
+- 2026-09-23: Approved by Jeff Kopko — target 1.36, us-east-1b-only nodegroup, window = now ("go now").
 
 ## Decisions & Commentary
 - **Target 1.36, not 1.35** — longest standard window (2027-08-02 vs 2027-03-27), EKS's default version in us-east-1, all 6 add-ons have 1.36 builds, and its removals (gitRepo, IPVS, externalIPs) aren't used. One extra hop is cheap.
