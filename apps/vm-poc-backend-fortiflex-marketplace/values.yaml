@@ -51,6 +51,10 @@ env:
   # SQLite user DB lives on.
   EA_SESSION_DIR: "/data/ea-sessions"
   APP_PERSIST_DIR: "/data/app"
+  # Runtime-edited catalog/parameters/spec files/presets. The PVC copy wins;
+  # the image copy only seeds an empty dir (a git catalog change must be
+  # re-imported via the UI). Export: GET /api/parameters/export.
+  APP_CONFIG_DIR: "/data/app/config"
   EA_SESSION_TTL_HOURS: "72"
   EA_MIN_FREE_MB: "300"
   FORTIAIGATE_BASE_URL: "https://fortiaigate.fortinetcloudcse.com/v1/responses"
