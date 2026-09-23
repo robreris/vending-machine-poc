@@ -20,7 +20,7 @@ Log File: docs/plans/0001_2026-09-23_Jeff Kopko_eks-upgrade-1.36.log.md (create 
   - Node: 16/35 pods, CPU requests 75%, memory requests 27%. Nodegroup subnets: 1a `subnet-0aa76279c76568d1d`, 1b `subnet-0070290c67b1b7cf3`.
   - Non-add-on software (Helm): AWS LB Controller **v2.14.1**, ExternalDNS **v0.17.0** (chart 1.19.0, image pinned older). CloudWatch observability add-on v6.7.0 (installed today).
   - No deprecated/removed core API usage (flowcontrol v1beta3 unused; repo manifests all GA). Ingress uses the `kubernetes.io/ingress.class: alb` annotation (still works). In-tree `gp2`/`gp2-immediate` StorageClasses unused.
-- Add-on compatibility (describe-addon-versions): **kube-proxy** must move every hop (installed build not valid ≥1.33… no compatible build ≥1.34); **coredns v1.11.1** invalid on ≥1.35 → move to v1.13.2-eksbuild.31 at 1.33 (valid through 1.36); vpc-cni v1.20.4, EBS CSI v1.63.0, metrics-server v0.8.0, CloudWatch v6.7.0 valid through 1.36.
+- Add-on compatibility (describe-addon-versions): **kube-proxy** must move every hop (installed v1.30 build has no compatible release for 1.34+); **coredns v1.11.1** invalid on ≥1.35 → move to v1.13.2-eksbuild.31 at 1.33 (valid through 1.36); vpc-cni v1.20.4, EBS CSI v1.63.0, metrics-server v0.8.0, CloudWatch v6.7.0 valid through 1.36.
 - **ExternalDNS 0.17 unsupported on ≥1.33** (Endpoints→EndpointSlices; needs ≥0.18). LBC has no stated upper bound; bump to latest v2.x (avoid v3's manual CRD step) before 1.35.
 - Version notes: 1.32 anonymous auth limited to health endpoints; 1.33 no AL2 AMIs (we're AL2023); 1.34 AL2023 AMIs ship containerd 2.1; 1.35 kubelet refuses cgroup v1 (AL2023 = v2), last containerd 1.x; 1.36 removes gitRepo volumes/IPVS, strict CIDR validation — none used here.
 - Rollback: a control-plane minor upgrade **cannot be undone** by EKS (EKS docs mention a limited rollback window for some cases — verify before relying on it; assume irreversible).
@@ -34,7 +34,7 @@ Log File: docs/plans/0001_2026-09-23_Jeff Kopko_eks-upgrade-1.36.log.md (create 
 - Assumption to verify at step 0: the ALB/ExternalDNS DNS records survive LBC/ExternalDNS restarts (upsert-only policy — they don't delete records).
 
 ## Plan
-### Phase 0 — Preparation (no downtime; can be done ahead of the window)
+### Phase 0 — Preparation (ahead of the window; only 0.2 restarts the app)
 - [ ] 0.1 EBS snapshot of the backend volume `vol-075ce4e0d79531362` (SQLite user DB + sessions + runtime config); record snapshot id. Also `kubectl get -A -o yaml` export of all objects to `/tmp`/S3 as a reference.
 - [ ] 0.2 **Fix the AZ trap:** create a new managed nodegroup `vm-group-1b` (t3.large, AL2023, **1.31**, subnet **us-east-1b only**, min1/desired1/max2, IMDSv2, same labels) via eksctl (update `arch/event-poc-cluster.yaml`); cordon + drain `vm-group` (brief app restart — this is also the 1.30→1.31 node catch-up); verify backend attaches its volume and app healthy; delete `vm-group`. *Why a new nodegroup:* a managed nodegroup's subnets can't be changed in place, and every future surge/replace must land in 1b where the volume lives.
 - [ ] 0.3 kube-proxy add-on → v1.31.14-eksbuild.36; verify Upgrade Insights for 1.32 all PASSING.
@@ -61,7 +61,7 @@ For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
 **tmux (sequential)** — strictly ordered, irreversible prod steps with waits between them; run in a dedicated worktree session with the operator (you) available during Phase 1 for go/no-go at each hop. Phase 0 can run ahead in the same session; Phase 1 in one agreed window.
 
 ## Plan Changes
-- (none)
+- 2026-09-23: fixed Phase 0 header (0.2 restarts the app) and garbled kube-proxy note.
 
 ## Decisions & Commentary
 - **Target 1.36, not 1.35** — longest standard window (2027-08-02 vs 2027-03-27), EKS's default version in us-east-1, all 6 add-ons have 1.36 builds, and its removals (gitRepo, IPVS, externalIPs) aren't used. One extra hop is cheap.
