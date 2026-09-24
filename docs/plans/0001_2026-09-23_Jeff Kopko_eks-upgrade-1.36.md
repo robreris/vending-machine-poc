@@ -82,13 +82,13 @@ For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
 
 ## Promotion
 - [x] `Decisions & Commentary` walked
-- [ ] Durable facts promoted to `CLAUDE.md` — list them: <...>
+- [x] Durable facts promoted — to fortigate-marketplace `docs/claude/deploy.md` (this repo has no CLAUDE.md).
 - [x] Promoted to fortigate-marketplace `docs/claude/deploy.md` (1b-only nodegroup + why; `--reuse-values` trap; versions).
 - [x] `Status:` set to `Complete`
 
 ## Follow-ups
 - [x] (2026-09-24: chart now sets the ALB health-check path from `healthCheck.path`; backend TG healthy) **Backend ALB health check is `/` → 404** (0 healthy targets for ≥7 days, ALB failing open): add `alb.ingress.kubernetes.io/healthcheck-path: /healthz` to the backend ingress.
-- [ ] Clean up 4 legacy `cname-*` ExternalDNS TXT records (ExternalDNS `scripts/aws-cleanup-legacy-txt-records.py`).
+- [x] (2026-09-24) Clean up 4 legacy `cname-*` ExternalDNS TXT records; also deleted dangling `fortiflex.`/`vm-test.` A/AAAA/TXT (aliases to deleted ALBs).
 - [x] (2026-09-24) Plan 2.2 hardening (gp2-csi default in shared pvc.yaml, `ingressClassName`, delete in-tree gp2 classes) — needs render-diff per app.
 - [ ] Verify Cost Explorer EKS line dropped to $0.10/h (check 2026-09-25).
 - [ ] Delete snapshot snap-04ad07ff951517c98 after ~2 weeks of healthy running.
