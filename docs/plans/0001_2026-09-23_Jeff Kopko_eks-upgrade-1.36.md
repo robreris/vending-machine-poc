@@ -92,7 +92,7 @@ For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
 - [x] (2026-09-24) Plan 2.2 hardening (gp2-csi default in shared pvc.yaml, `ingressClassName`, delete in-tree gp2 classes) — needs render-diff per app.
 - [ ] Verify Cost Explorer EKS line dropped to $0.10/h (check 2026-09-25).
 - [ ] Delete snapshot snap-04ad07ff951517c98 after ~2 weeks of healthy running.
-- [ ] Decide the fate of the 5 undeployed shared-chart apps (values files with no live objects).
+- [x] (2026-09-24, user: keep them) Decide the fate of the 5 undeployed shared-chart apps (values files with no live objects).
 
 ## Risks / Open Questions
 - **Maintenance window + owner sign-off** (robreris repo) — needed before Phase 0.2 (first app restart) and Phase 1.
