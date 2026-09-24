@@ -2,7 +2,7 @@
 Date: 2026-09-23
 Owner: Jeff Kopko
 Slug: eks-upgrade-1.36
-Status: Approved
+Status: Complete
 Supersedes: none
 Superseded-By: none
 Plan File: docs/plans/0001_2026-09-23_Jeff Kopko_eks-upgrade-1.36.md
@@ -35,27 +35,27 @@ Log File: docs/plans/0001_2026-09-23_Jeff Kopko_eks-upgrade-1.36.log.md (create 
 
 ## Plan
 ### Phase 0 — Preparation (ahead of the window; only 0.2 restarts the app)
-- [ ] 0.1 EBS snapshot of the backend volume `vol-075ce4e0d79531362` (SQLite user DB + sessions + runtime config); record snapshot id. Also `kubectl get -A -o yaml` export of all objects to `/tmp`/S3 as a reference.
-- [ ] 0.2 **Fix the AZ trap:** create a new managed nodegroup `vm-group-1b` (t3.large, AL2023, **1.31**, subnet **us-east-1b only**, min1/desired1/max2, IMDSv2, same labels) via eksctl (update `arch/event-poc-cluster.yaml`); cordon + drain `vm-group` (brief app restart — this is also the 1.30→1.31 node catch-up); verify backend attaches its volume and app healthy; delete `vm-group`. *Why a new nodegroup:* a managed nodegroup's subnets can't be changed in place, and every future surge/replace must land in 1b where the volume lives.
-- [ ] 0.3 kube-proxy add-on → v1.31.14-eksbuild.36; verify Upgrade Insights for 1.32 all PASSING.
-- [ ] 0.4 ExternalDNS → latest (≥0.18, e.g. chart 1.19.0's app 0.19.0): remove the pinned 0.17.0 image, `helm upgrade` with existing values; verify it reconciles both Ingress hostnames without changes (upsert-only).
-- [ ] 0.5 AWS LB Controller → latest v2.x (chart 1.x matching); apply its CRDs from the release first per its upgrade notes; verify both ALBs/target groups healthy, no Ingress re-creation.
-- [ ] 0.6 Pin versions in the Makefile (LBC + ExternalDNS `--version`) so a rebuild reproduces them.
+- [x] 0.1 EBS snapshot of the backend volume `vol-075ce4e0d79531362` (SQLite user DB + sessions + runtime config); record snapshot id. Also `kubectl get -A -o yaml` export of all objects to `/tmp`/S3 as a reference.
+- [x] 0.2 **Fix the AZ trap:** create a new managed nodegroup `vm-group-1b` (t3.large, AL2023, **1.31**, subnet **us-east-1b only**, min1/desired1/max2, IMDSv2, same labels) via eksctl (update `arch/event-poc-cluster.yaml`); cordon + drain `vm-group` (brief app restart — this is also the 1.30→1.31 node catch-up); verify backend attaches its volume and app healthy; delete `vm-group`. *Why a new nodegroup:* a managed nodegroup's subnets can't be changed in place, and every future surge/replace must land in 1b where the volume lives.
+- [x] 0.3 kube-proxy add-on → v1.31.14-eksbuild.36; verify Upgrade Insights for 1.32 all PASSING.
+- [x] 0.4 ExternalDNS → latest (≥0.18, e.g. chart 1.19.0's app 0.19.0): remove the pinned 0.17.0 image, `helm upgrade` with existing values; verify it reconciles both Ingress hostnames without changes (upsert-only).
+- [x] 0.5 AWS LB Controller → latest v2.x (chart 1.x matching); apply its CRDs from the release first per its upgrade notes; verify both ALBs/target groups healthy, no Ingress re-creation.
+- [x] 0.6 Pin versions in the Makefile (LBC + ExternalDNS `--version`) so a rebuild reproduces them.
 
 ### Phase 1 — Control-plane + node hops (maintenance window, ~2–3 h total)
 For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
-- [ ] a. `aws eks update-cluster-version --kubernetes-version v` → wait ACTIVE (~10–15 min; API stays up, workloads keep running).
-- [ ] b. Check Upgrade Insights for the next version (`list-insights`) — stop on any ERROR.
-- [ ] c. `aws eks update-nodegroup-version --nodegroup-name vm-group-1b` (latest AMI for v) → wait; app restarts once (few min). Verify: `/healthz`, `/api/whoami`, frontend 200, backend pod Running with PVC mounted, `/data` contents intact.
-- [ ] d. Add-ons: kube-proxy → v's default (1.32.13 / 1.33.10 / 1.34.6 / 1.35.3 / 1.36.0 eksbuild); coredns → v1.11.4-eksbuild.60 at 1.32, **v1.13.2-eksbuild.31 at 1.33** (valid to 1.36; optional v1.14.x at 1.36); metrics-server → v0.9.0 at 1.34; vpc-cni → v1.22.4 once (any hop); EBS CSI → v1.66.0 once. Use `--resolve-conflicts PRESERVE`.
-- [ ] e. Smoke test: EA upload + dry run (small testfile), CloudWatch logs still flowing, ALB/ExternalDNS healthy.
+- [x] a. `aws eks update-cluster-version --kubernetes-version v` → wait ACTIVE (~10–15 min; API stays up, workloads keep running).
+- [x] b. Check Upgrade Insights for the next version (`list-insights`) — stop on any ERROR.
+- [x] c. `aws eks update-nodegroup-version --nodegroup-name vm-group-1b` (latest AMI for v) → wait; app restarts once (few min). Verify: `/healthz`, `/api/whoami`, frontend 200, backend pod Running with PVC mounted, `/data` contents intact.
+- [x] d. Add-ons: kube-proxy → v's default (1.32.13 / 1.33.10 / 1.34.6 / 1.35.3 / 1.36.0 eksbuild); coredns → v1.11.4-eksbuild.60 at 1.32, **v1.13.2-eksbuild.31 at 1.33** (valid to 1.36; optional v1.14.x at 1.36); metrics-server → v0.9.0 at 1.34; vpc-cni → v1.22.4 once (any hop); EBS CSI → v1.66.0 once. Use `--resolve-conflicts PRESERVE`.
+- [x] e. Smoke test: EA upload + dry run (small testfile), CloudWatch logs still flowing, ALB/ExternalDNS healthy.
 - Billing drops to standard at the **1.34** hop; 1.34 is only standard until 2026-12-02, so don't stop there.
 
 ### Phase 2 — Cleanup & record
-- [ ] 2.1 `arch/event-poc-cluster.yaml`: version 1.36, nodegroup `vm-group-1b` single-subnet, add-on versions; remove stale kubectl download URL from the commented deploy job (or leave commented with dl.k8s.io).
-- [ ] 2.2 Optional hardening: default `storageClassName` in `apps/charts/shared/templates/pvc.yaml` → `gp2-csi`; `ingressClassName: alb` instead of the deprecated annotation (render-diff first); delete unused in-tree `gp2`/`gp2-immediate` StorageClasses.
-- [ ] 2.3 Verify billing: Cost Explorer EKS line drops from ~$0.60/h to $0.10/h after 1.34.
-- [ ] 2.4 Docs: fortigate-marketplace `docs/claude/deploy.md` (nodegroup name, 1b pinning, versions); memory; close-out.
+- [x] 2.1 `arch/event-poc-cluster.yaml`: version 1.36, nodegroup `vm-group-1b` single-subnet, add-on versions; remove stale kubectl download URL from the commented deploy job (or leave commented with dl.k8s.io).
+- [ ] 2.2 (not done — follow-up) Optional hardening: default `storageClassName` in `apps/charts/shared/templates/pvc.yaml` → `gp2-csi`; `ingressClassName: alb` instead of the deprecated annotation (render-diff first); delete unused in-tree `gp2`/`gp2-immediate` StorageClasses.
+- [ ] 2.3 (pending — Cost Explorer lags ~24 h) Verify billing: Cost Explorer EKS line drops from ~$0.60/h to $0.10/h after 1.34.
+- [x] 2.4 Docs: fortigate-marketplace `docs/claude/deploy.md` (nodegroup name, 1b pinning, versions); memory; close-out.
 
 ## Implementation Method
 **tmux (sequential)** — strictly ordered, irreversible prod steps with waits between them; run in a dedicated worktree session with the operator (you) available during Phase 1 for go/no-go at each hop. Phase 0 can run ahead in the same session; Phase 1 in one agreed window.
@@ -71,18 +71,26 @@ For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
 - Rejected: temporarily running desired=2 for zero downtime — the backend is RWO/Recreate/1 replica, so a second node can't take over its pod anyway; it only shortens system-pod churn. Could still be used to speed rolls (surge) if desired.
 
 ## Files Changed
-- (none yet)
+- `arch/event-poc-cluster.yaml` — version 1.36; nodegroup `vm-group-1b` pinned to us-east-1b (+ why comment).
+- `Makefile` — `lbc_chart_version ?= 1.17.1`, `externaldns_chart_version ?= 1.22.0`; ExternalDNS v0.17.0 image pin removed.
+- `crds/crds.yaml` — LBC CRDs synced to chart 1.17.1.
+- `docs/plans/0001_…eks-upgrade-1.36.log.md` — execution log.
 
 ## Session Summary
-- (write at end)
+- 2026-09-23 23:00 → 09-24 00:58 UTC, executed inline (tmux hand-off refused by the auto-mode classifier). All 5 hops clean, no Insight ERRORs, app healthy after every step; SSO expired once mid-hop (re-login, no harm). Details + versions: the log file.
 
 ## Promotion
-- [ ] `Decisions & Commentary` walked
+- [x] `Decisions & Commentary` walked
 - [ ] Durable facts promoted to `CLAUDE.md` — list them: <...>
-- [ ] Nothing to promote (say so explicitly rather than leaving this section blank)
-- [ ] `Status:` set to `Complete`
+- [x] Promoted to fortigate-marketplace `docs/claude/deploy.md` (1b-only nodegroup + why; `--reuse-values` trap; versions).
+- [x] `Status:` set to `Complete`
 
 ## Follow-ups
+- [ ] **Backend ALB health check is `/` → 404** (0 healthy targets for ≥7 days, ALB failing open): add `alb.ingress.kubernetes.io/healthcheck-path: /healthz` to the backend ingress.
+- [ ] Clean up 4 legacy `cname-*` ExternalDNS TXT records (ExternalDNS `scripts/aws-cleanup-legacy-txt-records.py`).
+- [ ] Plan 2.2 hardening (gp2-csi default in shared pvc.yaml, `ingressClassName`, delete in-tree gp2 classes) — needs render-diff per app.
+- [ ] Verify Cost Explorer EKS line dropped to $0.10/h (check 2026-09-25).
+- [ ] Delete snapshot snap-04ad07ff951517c98 after ~2 weeks of healthy running.
 - [ ] Decide the fate of the 5 undeployed shared-chart apps (values files with no live objects).
 
 ## Risks / Open Questions
