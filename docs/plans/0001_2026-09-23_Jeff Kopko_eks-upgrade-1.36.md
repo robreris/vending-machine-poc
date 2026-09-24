@@ -53,7 +53,7 @@ For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
 
 ### Phase 2 — Cleanup & record
 - [x] 2.1 `arch/event-poc-cluster.yaml`: version 1.36, nodegroup `vm-group-1b` single-subnet, add-on versions; remove stale kubectl download URL from the commented deploy job (or leave commented with dl.k8s.io).
-- [ ] 2.2 (not done — follow-up) Optional hardening: default `storageClassName` in `apps/charts/shared/templates/pvc.yaml` → `gp2-csi`; `ingressClassName: alb` instead of the deprecated annotation (render-diff first); delete unused in-tree `gp2`/`gp2-immediate` StorageClasses.
+- [x] 2.2 (done 2026-09-24, see Plan Changes) Optional hardening: default `storageClassName` in `apps/charts/shared/templates/pvc.yaml` → `gp2-csi`; `ingressClassName: alb` instead of the deprecated annotation (render-diff first); delete unused in-tree `gp2`/`gp2-immediate` StorageClasses.
 - [ ] 2.3 (pending — Cost Explorer lags ~24 h) Verify billing: Cost Explorer EKS line drops from ~$0.60/h to $0.10/h after 1.34.
 - [x] 2.4 Docs: fortigate-marketplace `docs/claude/deploy.md` (nodegroup name, 1b pinning, versions); memory; close-out.
 
@@ -63,6 +63,7 @@ For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
 ## Plan Changes
 - 2026-09-23: fixed Phase 0 header (0.2 restarts the app) and garbled kube-proxy note.
 - 2026-09-23: Approved by Jeff Kopko — target 1.36, us-east-1b-only nodegroup, window = now ("go now").
+- 2026-09-24 follow-ups (user: "do all of them"): shared chart `ingress.yaml` — `spec.ingressClassName: alb` replaces the deprecated annotation, and `alb.ingress.kubernetes.io/healthcheck-path` defaults to `healthCheck.path` when `healthCheck.enabled` (explicit annotation wins); `pvc.yaml` default storageClass `gp2` → `gp2-csi`. Render-diff + `kubectl diff`: only the two Ingresses changed, no pod restarts; applied via helm (backend rev 22, frontend rev 7), same ALBs, backend TG healthy for the first time. Deleted unused in-tree StorageClasses `gp2`/`gp2-immediate` (YAML saved to /tmp/claude-1000/eks-fu/). Route53 legacy TXT delete blocked by the auto-mode classifier → user runs it. Cost Explorer: extended-support line was $12.00/day (sole cluster on it); 09-24 data not yet available.
 
 ## Decisions & Commentary
 - **Target 1.36, not 1.35** — longest standard window (2027-08-02 vs 2027-03-27), EKS's default version in us-east-1, all 6 add-ons have 1.36 builds, and its removals (gitRepo, IPVS, externalIPs) aren't used. One extra hop is cheap.
@@ -86,9 +87,9 @@ For each target **v ∈ 1.32, 1.33, 1.34, 1.35, 1.36**:
 - [x] `Status:` set to `Complete`
 
 ## Follow-ups
-- [ ] **Backend ALB health check is `/` → 404** (0 healthy targets for ≥7 days, ALB failing open): add `alb.ingress.kubernetes.io/healthcheck-path: /healthz` to the backend ingress.
+- [x] (2026-09-24: chart now sets the ALB health-check path from `healthCheck.path`; backend TG healthy) **Backend ALB health check is `/` → 404** (0 healthy targets for ≥7 days, ALB failing open): add `alb.ingress.kubernetes.io/healthcheck-path: /healthz` to the backend ingress.
 - [ ] Clean up 4 legacy `cname-*` ExternalDNS TXT records (ExternalDNS `scripts/aws-cleanup-legacy-txt-records.py`).
-- [ ] Plan 2.2 hardening (gp2-csi default in shared pvc.yaml, `ingressClassName`, delete in-tree gp2 classes) — needs render-diff per app.
+- [x] (2026-09-24) Plan 2.2 hardening (gp2-csi default in shared pvc.yaml, `ingressClassName`, delete in-tree gp2 classes) — needs render-diff per app.
 - [ ] Verify Cost Explorer EKS line dropped to $0.10/h (check 2026-09-25).
 - [ ] Delete snapshot snap-04ad07ff951517c98 after ~2 weeks of healthy running.
 - [ ] Decide the fate of the 5 undeployed shared-chart apps (values files with no live objects).

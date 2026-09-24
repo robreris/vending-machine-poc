@@ -4,17 +4,21 @@ kind: Ingress
 metadata:
   name: {{ .Values.name }}-ingress
   annotations:
-    kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
     alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn | quote }}
     alb.ingress.kubernetes.io/ssl-redirect: '443'
     external-dns.alpha.kubernetes.io/hostname: {{ .Values.ingress.host }}
+    {{- /* ALB target health follows the pod's own probe path; the ALB default "/" 404s on API backends. */}}
+    {{- if and .Values.healthCheck.enabled (not (hasKey (.Values.ingress.annotations | default dict) "alb.ingress.kubernetes.io/healthcheck-path")) }}
+    alb.ingress.kubernetes.io/healthcheck-path: {{ .Values.healthCheck.path | quote }}
+    {{- end }}
     {{- with .Values.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
+  ingressClassName: alb
   rules:
     - host: {{ .Values.ingress.host }}
       http:
